@@ -49,10 +49,12 @@ import Testing
 
     @Test("Queue ignores duplicates and keeps oldest first") func queueDedupAndOrder() {
         var queue = MinuteExportQueue()
-        #expect(queue.enqueue(entry(10, secondsFromStart: 600)))
-        #expect(queue.enqueue(entry(8, secondsFromStart: 480)))
-        #expect(queue.enqueue(entry(9, secondsFromStart: 540)))
-        #expect(!queue.enqueue(entry(9, secondsFromStart: 540)))
+        let added10 = queue.enqueue(entry(10, secondsFromStart: 600))
+        let added8 = queue.enqueue(entry(8, secondsFromStart: 480))
+        let added9 = queue.enqueue(entry(9, secondsFromStart: 540))
+        let addedDuplicate = queue.enqueue(entry(9, secondsFromStart: 540))
+        #expect(added10 && added8 && added9)
+        #expect(!addedDuplicate)
         #expect(queue.pending.map(\.identifier) == ["libreloop-SN1-8", "libreloop-SN1-9", "libreloop-SN1-10"])
     }
 
@@ -76,8 +78,10 @@ import Testing
 
         queue.clearPending()
         #expect(queue.pending.isEmpty)
-        #expect(!queue.enqueue(entry(4, secondsFromStart: 240)))
-        #expect(queue.enqueue(entry(5, secondsFromStart: 300)))
+        let readdedCleared = queue.enqueue(entry(4, secondsFromStart: 240))
+        let addedNew = queue.enqueue(entry(5, secondsFromStart: 300))
+        #expect(!readdedCleared)
+        #expect(addedNew)
     }
 
     @Test("Queue survives a JSON round trip") func queuePersistence() throws {
