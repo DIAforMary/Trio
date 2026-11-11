@@ -3,14 +3,14 @@ import Foundation
 
 // MARK: - 1-minute glucose export (fork feature, DIAforMary/Trio)
 //
-// Optional, opt-in export of every Libre 3 minute reading that LibreLoop
-// receives to a SECONDARY Nightscout-compatible server (e.g. Nocturne).
+// Optional, opt-in export of the Libre 3 minute readings that LibreLoop
+// receives, either to a second Nightscout-compatible server (e.g. Nocturne)
+// or, experimentally, to Trio's main Nightscout (see MinuteExportTarget).
 //
 // Design rule: this feature is purely additive. It never writes to
 // `GlucoseStored`, never triggers a loop, never touches the algorithm,
-// alarms, delta displays or the primary Nightscout upload. If it fails,
-// the only effect is that the secondary server does not get the minute
-// readings.
+// alarms, delta displays or Trio's own Nightscout upload. If it fails,
+// the only effect is that the minute readings do not reach the server.
 //
 // This file holds the Foundation-only parts (data model, queue, request
 // building, URL checks) so they can be unit-tested without a CGM.
@@ -38,7 +38,24 @@ enum MinuteGlucoseExport {
         static let url = "MinuteGlucoseExport.url"
         /// Keychain: String, API secret of the secondary server.
         static let secret = "MinuteGlucoseExport.secret"
+        /// UserDefaults: String, raw value of `MinuteExportTarget`.
+        static let target = "MinuteGlucoseExport.target"
     }
+}
+
+/// Where the minute readings go.
+enum MinuteExportTarget: String, CaseIterable, Identifiable {
+    /// A separate Nightscout-compatible server (e.g. Nocturne). All minute
+    /// readings are sent there. Recommended.
+    case secondServer
+    /// EXPERIMENTAL: Trio's own (primary) Nightscout. Only the minute
+    /// readings Trio does NOT upload itself are sent, in exactly Trio's
+    /// format, so the 5-minute readings stay untouched. Follower apps that
+    /// assume 5-minute data (e.g. LoopFollow deltas and fast-drop alarms)
+    /// will see 1-minute data.
+    case primaryNightscout
+
+    var id: String { rawValue }
 }
 
 // MARK: - Entry
@@ -61,7 +78,9 @@ struct MinuteExportEntry: Codable, Equatable {
         self.identifier = identifier
         type = "sgv"
         sgv = mgdl
-        self.date = Int64((date.timeIntervalSince1970 * 1000).rounded())
+        // Truncated like Trio's own uploads (`Int(date * 1000)`), so the same
+        // reading always gets the same millisecond timestamp.
+        self.date = Int64(date.timeIntervalSince1970 * 1000)
         dateString = MinuteExportEntry.isoFormatter.string(from: date)
         self.direction = direction
         self.device = device
@@ -71,12 +90,38 @@ struct MinuteExportEntry: Codable, Equatable {
         "libreloop-\(sensorSerial ?? "unknown")-\(lifeCount)"
     }
 
+    /// The JSON document sent to the server. For the primary Nightscout,
+    /// `device` and `identifier` are left out so the document looks exactly
+    /// like the ones Trio uploads itself.
+    func uploadDocument(for target: MinuteExportTarget) -> MinuteExportUploadDocument {
+        MinuteExportUploadDocument(
+            type: type,
+            sgv: sgv,
+            date: date,
+            dateString: dateString,
+            direction: direction,
+            device: target == .secondServer ? device : nil,
+            identifier: target == .secondServer ? identifier : nil
+        )
+    }
+
     private static let isoFormatter: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         formatter.timeZone = TimeZone(identifier: "UTC")
         return formatter
     }()
+}
+
+/// Wire format of one uploaded entry; `nil` fields are omitted.
+struct MinuteExportUploadDocument: Encodable, Equatable {
+    let type: String
+    let sgv: Int
+    let date: Int64
+    let dateString: String
+    let direction: String
+    let device: String?
+    let identifier: String?
 }
 
 // MARK: - Queue
@@ -183,7 +228,12 @@ enum MinuteExportRequest {
         return components.url
     }
 
-    static func makeUploadRequest(base: URL, secret: String?, entries: [MinuteExportEntry]) throws -> URLRequest {
+    static func makeUploadRequest(
+        base: URL,
+        secret: String?,
+        entries: [MinuteExportEntry],
+        target: MinuteExportTarget
+    ) throws -> URLRequest {
         guard let url = endpointURL(base: base, endpoint: "entries.json") else { throw URLError(.badURL) }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -193,7 +243,7 @@ enum MinuteExportRequest {
         if let secret = secret?.trimmingCharacters(in: .whitespacesAndNewlines), !secret.isEmpty {
             request.addValue(sha1Hex(secret), forHTTPHeaderField: "api-secret")
         }
-        request.httpBody = try JSONEncoder().encode(entries)
+        request.httpBody = try JSONEncoder().encode(entries.map { $0.uploadDocument(for: target) })
         return request
     }
 

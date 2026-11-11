@@ -146,7 +146,14 @@ extension NightscoutConfig {
 
             if glucose.isNotEmpty {
                 do {
-                    try await glucoseStorage.storeGlucose(glucose)
+                    // Fork feature (1-minute export, "Main Nightscout" target):
+                    // the main Nightscout may hold 1-minute readings. Keep
+                    // backfilled glucose at Trio's normal spacing: thin the
+                    // fetched readings to at least 3.5 minutes apart, and
+                    // `backfillGlucose` skips any within 3.5 minutes of
+                    // readings Trio already has (the same rule as CGM backfill).
+                    let spaced = glucoseStorage.filterTooFrequentGlucose(glucose, at: .distantPast)
+                    try await glucoseStorage.backfillGlucose(spaced)
 
                     Task.detached {
                         await self.healthKitManager.uploadGlucose()

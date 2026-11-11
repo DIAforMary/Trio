@@ -5,6 +5,7 @@ struct MinuteExportView: View {
     @ObservedObject private var exporter = MinuteGlucoseExporter.shared
 
     @State private var enabled = false
+    @State private var target: MinuteExportTarget = .secondServer
     @State private var urlString = ""
     @State private var secret = ""
     @State private var resultMessage: String?
@@ -17,22 +18,41 @@ struct MinuteExportView: View {
     var body: some View {
         List {
             Section(
-                header: Text("Second server"),
+                header: Text("1-minute readings"),
                 footer: Text(
-                    "Sends every FreeStyle Libre 3 / 3+ minute reading to a second Nightscout-compatible server, for example Nocturne. Trio's own glucose data, the algorithm, alarms and the upload to your primary Nightscout do not change. Use the second server for viewing only; do not connect LoopFollow or other follower apps to it."
+                    "Sends FreeStyle Libre 3 / 3+ minute readings to Nightscout. Trio's own glucose data, the algorithm and its alarms do not change. Changes take effect when you tap Save."
                 )
             ) {
                 Toggle("Enable 1-minute export", isOn: $enabled)
 
-                TextField("https://your-nocturne.example.com", text: $urlString)
-                    .keyboardType(.URL)
-                    .textContentType(.URL)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
+                Picker("Send to", selection: $target) {
+                    Text("Second server").tag(MinuteExportTarget.secondServer)
+                    Text("Main Nightscout (experimental)").tag(MinuteExportTarget.primaryNightscout)
+                }
 
-                SecureField("API secret", text: $secret)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
+                if target == .secondServer {
+                    TextField("https://your-nocturne.example.com", text: $urlString)
+                        .keyboardType(.URL)
+                        .textContentType(.URL)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+
+                    SecureField("API secret", text: $secret)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+
+                    Text(
+                        "All minute readings go to this separate server, for example Nocturne. Your main Nightscout keeps getting 5-minute data. Use the second server for viewing only; do not connect LoopFollow or other follower apps to it."
+                    )
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+                } else {
+                    Text(
+                        "Experimental: the minute readings Trio does not upload itself are added to your main Nightscout, using Trio's existing connection. Follower apps built for 5-minute data will see 1-minute data: LoopFollow then shows deltas about 5 times smaller, and its fast-drop alarm, which counts the drop per reading, may not fire. Only use this while nobody relies on those follower alarms."
+                    )
+                    .font(.footnote)
+                    .foregroundColor(.orange)
+                }
 
                 Button("Save") { save() }
 
@@ -47,7 +67,7 @@ struct MinuteExportView: View {
                         }
                     }
                 }
-                .disabled(testing || urlString.trimmingCharacters(in: .whitespaces).isEmpty)
+                .disabled(testing || (target == .secondServer && urlString.trimmingCharacters(in: .whitespaces).isEmpty))
 
                 if let resultMessage {
                     Text(resultMessage)
@@ -60,6 +80,12 @@ struct MinuteExportView: View {
             Section(header: Text("Status")) {
                 statusRow("Libre 3 (LibreLoop) connected", exporter.status.isLibreLoopActive ? "Yes" : "No")
                 statusRow("Export", exporter.isEnabled ? "On" : "Off")
+                statusRow(
+                    "Sending to",
+                    exporter.target == .secondServer
+                        ? String(localized: "Second server")
+                        : String(localized: "Main Nightscout")
+                )
                 statusRow("Waiting to upload", "\(exporter.status.pendingCount)")
                 statusRow("Last upload", formatted(exporter.status.lastUploadAt))
                 statusRow("Newest reading uploaded", formatted(exporter.status.lastUploadedReadingAt))
@@ -77,6 +103,7 @@ struct MinuteExportView: View {
         .background(appState.trioBackgroundColor(for: colorScheme))
         .onAppear {
             enabled = exporter.isEnabled
+            target = exporter.target
             urlString = exporter.configuredURLString
             secret = exporter.configuredSecret
         }
@@ -97,7 +124,7 @@ struct MinuteExportView: View {
 
     private func save() {
         do {
-            try exporter.saveSettings(enabled: enabled, urlString: urlString, secret: secret)
+            try exporter.saveSettings(enabled: enabled, target: target, urlString: urlString, secret: secret)
             urlString = exporter.configuredURLString
             resultIsError = false
             resultMessage = enabled
@@ -112,7 +139,7 @@ struct MinuteExportView: View {
     private func test() {
         testing = true
         resultMessage = nil
-        exporter.testConnection(urlString: urlString, secret: secret) { result in
+        exporter.testConnection(target: target, urlString: urlString, secret: secret) { result in
             testing = false
             switch result {
             case let .success(message):

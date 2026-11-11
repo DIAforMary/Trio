@@ -107,7 +107,12 @@ import Testing
 
     @Test("Upload request: POST entries.json with hashed api-secret") func uploadRequest() throws {
         let base = URL(string: "https://nocturne.example.org")!
-        let request = try MinuteExportRequest.makeUploadRequest(base: base, secret: "test", entries: [entry(1)])
+        let request = try MinuteExportRequest.makeUploadRequest(
+            base: base,
+            secret: "test",
+            entries: [entry(1)],
+            target: .secondServer
+        )
         #expect(request.httpMethod == "POST")
         #expect(request.url?.absoluteString == "https://nocturne.example.org/api/v1/entries.json")
         #expect(request.value(forHTTPHeaderField: "api-secret") == "a94a8fe5ccb19ba61c4c0873d391e987982fbbd3")
@@ -115,9 +120,38 @@ import Testing
         #expect(body == [entry(1)])
     }
 
+    @Test("Main Nightscout target sends Trio's format: no device, no identifier") func primaryTargetDocument() throws {
+        let base = URL(string: "https://my-ns.example.org")!
+        let request = try MinuteExportRequest.makeUploadRequest(
+            base: base,
+            secret: "test",
+            entries: [entry(7, mgdl: 140)],
+            target: .primaryNightscout
+        )
+        let body = try #require(request.httpBody)
+        let array = try #require(try JSONSerialization.jsonObject(with: body) as? [[String: Any]])
+        let object = try #require(array.first)
+        #expect(object["device"] == nil)
+        #expect(object["identifier"] == nil)
+        #expect(object["type"] as? String == "sgv")
+        #expect(object["sgv"] as? Int == 140)
+        #expect(object["dateString"] as? String == "2027-01-15T08:00:00.000Z")
+    }
+
+    @Test("Timestamps are truncated to the millisecond, like Trio's uploads") func dateTruncation() {
+        let date = Date(timeIntervalSince1970: 1_800_000_000.9999)
+        let entry = MinuteExportEntry(identifier: "x", mgdl: 100, date: date, direction: "Flat")
+        #expect(entry.date == 1_800_000_000_999)
+    }
+
     @Test("Upload request without secret sends no api-secret header") func uploadRequestWithoutSecret() throws {
         let base = URL(string: "https://example.org?token=abc")!
-        let request = try MinuteExportRequest.makeUploadRequest(base: base, secret: "  ", entries: [entry(1)])
+        let request = try MinuteExportRequest.makeUploadRequest(
+            base: base,
+            secret: "  ",
+            entries: [entry(1)],
+            target: .secondServer
+        )
         #expect(request.value(forHTTPHeaderField: "api-secret") == nil)
     }
 
