@@ -18,7 +18,11 @@ final class PluginSource: GlucoseSource {
     let cgmProgressHighlight = CurrentValueSubject<DeviceLifecycleProgress?, Never>(nil)
 
     var cgmManager: CGMManagerUI? {
-        didSet { publishCGMStatus() }
+        didSet {
+            publishCGMStatus()
+            // Fork feature: 1-minute export to a second server (Libre 3 only).
+            MinuteGlucoseExporter.shared.attach(to: cgmManager)
+        }
     }
 
     var cgmHasValidSensorSession: Bool = false
@@ -32,6 +36,8 @@ final class PluginSource: GlucoseSource {
         cgmManager?.cgmManagerDelegate = self
         // didSet doesn't fire from the defining class's own init.
         publishCGMStatus()
+        // Fork feature: 1-minute export to a second server (Libre 3 only).
+        MinuteGlucoseExporter.shared.attach(to: cgmManager)
     }
 
     /// Republishes the manager's lifecycle/highlight to the subjects.

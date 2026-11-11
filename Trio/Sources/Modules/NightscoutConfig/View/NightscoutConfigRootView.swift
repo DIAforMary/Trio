@@ -59,6 +59,8 @@ extension NightscoutConfig {
                             })
                             NavigationLink("Upload", destination: NightscoutUploadView(state: state))
                             NavigationLink("Fetch", destination: NightscoutFetchView(state: state))
+                            // Fork feature: 1-minute export to a second server (Libre 3 only).
+                            NavigationLink("1-Minute Export (Libre 3)", destination: MinuteExportView())
                         }
                     ).listRowBackground(Color.chart)
 

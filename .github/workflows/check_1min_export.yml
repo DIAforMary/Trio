@@ -1,0 +1,80 @@
+name: zz Check 1-min export (compile + tests)
+# Fork-only workflow (DIAforMary/Trio, branch libre-1min-export).
+# Compiles Trio for the iOS Simulator and runs the 1-minute export unit tests.
+# Needs no Apple credentials and uploads nothing to TestFlight.
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - libre-1min-export
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Compile and test
+    runs-on: macos-26
+    timeout-minutes: 120
+    env:
+      DESTINATION: "platform=iOS Simulator,name=iPhone 17,OS=26.2"
+
+    steps:
+      - name: Select Xcode version
+        run: sudo xcode-select -s /Applications/Xcode_26.2.app/Contents/Developer
+
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+          submodules: recursive
+
+      - name: Resolve Swift packages
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -workspace Trio.xcworkspace \
+            -scheme "Trio Tests" \
+            -onlyUsePackageVersionsFromResolvedFile
+
+      - name: Build for testing
+        run: |
+          set -o pipefail
+          xcodebuild build-for-testing \
+            -workspace Trio.xcworkspace \
+            -scheme "Trio Tests" \
+            -destination "$DESTINATION" \
+            -onlyUsePackageVersionsFromResolvedFile \
+            -disableAutomaticPackageResolution \
+            -skipPackagePluginValidation \
+            -skipMacroValidation \
+            -quiet \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM="" \
+            PROVISIONING_PROFILE_SPECIFIER="" \
+            2>&1 | tee xcodebuild-build.log
+
+      - name: Run 1-min export tests
+        id: run_tests
+        run: |
+          set -o pipefail
+          xcodebuild test-without-building \
+            -workspace Trio.xcworkspace \
+            -scheme "Trio Tests" \
+            -destination "$DESTINATION" \
+            -parallel-testing-enabled NO \
+            -only-testing:TrioTests/MinuteGlucoseExportTests \
+            2>&1 | tee xcodebuild-test.log
+
+      - name: Show errors
+        if: failure()
+        run: |
+          for f in xcodebuild-build.log xcodebuild-test.log; do
+            [ -f "$f" ] || continue
+            echo "::group::$f"
+            grep -nE "error:|failed|Failing tests|✘|Issue recorded|BUILD FAILED" "$f" | tail -n 120 || true
+            echo "::endgroup::"
+          done

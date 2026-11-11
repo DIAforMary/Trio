@@ -7,6 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		C47CAF36E5B76C463CA8A443 /* MinuteGlucoseExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F310916FA04E838023A0F8F /* MinuteGlucoseExport.swift */; };
+		C21982002F3E5C4DDD97994D /* MinuteGlucoseExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38403810083884760586FA24 /* MinuteGlucoseExporter.swift */; };
+		368375FAEAC3EAAF9C633885 /* MinuteExportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD40E7BC0D4FACB9B47043B6 /* MinuteExportView.swift */; };
+		9F19F16A015C8C7BE15B1903 /* MinuteGlucoseExportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C403B97EA4618CEF59568F32 /* MinuteGlucoseExportTests.swift */; };
 		041D1E995A6AE92E9289DC49 /* TreatmentsDataFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8D1A7CA8C10C4403D4BBFA7 /* TreatmentsDataFlow.swift */; };
 		0D9A5E34A899219C5C4CDFAF /* HistoryStateModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9455FA2D92E77A6C4AFED8A3 /* HistoryStateModel.swift */; };
 		110AEDE32C5193D200615CC9 /* BolusIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110AEDE02C5193D100615CC9 /* BolusIntent.swift */; };
@@ -1106,6 +1110,10 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		4F310916FA04E838023A0F8F /* MinuteGlucoseExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MinuteGlucoseExport.swift; sourceTree = "<group>"; };
+		38403810083884760586FA24 /* MinuteGlucoseExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MinuteGlucoseExporter.swift; sourceTree = "<group>"; };
+		CD40E7BC0D4FACB9B47043B6 /* MinuteExportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MinuteExportView.swift; sourceTree = "<group>"; };
+		C403B97EA4618CEF59568F32 /* MinuteGlucoseExportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MinuteGlucoseExportTests.swift; sourceTree = "<group>"; };
 		10E61A0885164081B57C357C /* NightscoutUploadSerializer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NightscoutUploadSerializer.swift; sourceTree = "<group>"; };
 		110AEDE02C5193D100615CC9 /* BolusIntent.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BolusIntent.swift; sourceTree = "<group>"; };
 		110AEDE12C5193D100615CC9 /* BolusIntentRequest.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BolusIntentRequest.swift; sourceTree = "<group>"; };
@@ -3193,6 +3201,7 @@
 			children = (
 				DDDD0FFD2F4E231600F9C645 /* Mocks */,
 				DDDD0FFA2F4E22C000F9C645 /* GlucoseSmoothingTests.swift */,
+				C403B97EA4618CEF59568F32 /* MinuteGlucoseExportTests.swift */,
 				DDDD0FFC2F4E22C000F9C645 /* GlucoseNativeConversionTests.swift */,
 				DDDD10A02F4E22C000F9C645 /* CarbsNativeConversionTests.swift */,
 				DDDD10B02F4E22C000F9C645 /* PumpHistoryNativeConversionTests.swift */,
@@ -4533,6 +4542,9 @@
 				10E61A0885164081B57C357C /* NightscoutUploadSerializer.swift */,
 				3811DE9725C9D88300A708ED /* NightscoutManager.swift */,
 				38FE826C25CC8461001FF17A /* NightscoutAPI.swift */,
+				4F310916FA04E838023A0F8F /* MinuteGlucoseExport.swift */,
+				38403810083884760586FA24 /* MinuteGlucoseExporter.swift */,
+				CD40E7BC0D4FACB9B47043B6 /* MinuteExportView.swift */,
 				DD906BF52EA6AAE900262772 /* BaseNightscoutManager+Subscribers.swift */,
 			);
 			path = Nightscout;
@@ -5411,6 +5423,9 @@
 				DDD6D4D32CDE90720029439A /* EstimatedA1cDisplayUnit.swift in Sources */,
 				DDA6E3572D25988500C2988C /* ContactImageHelpView.swift in Sources */,
 				38FE826D25CC8461001FF17A /* NightscoutAPI.swift in Sources */,
+				C47CAF36E5B76C463CA8A443 /* MinuteGlucoseExport.swift in Sources */,
+				C21982002F3E5C4DDD97994D /* MinuteGlucoseExporter.swift in Sources */,
+				368375FAEAC3EAAF9C633885 /* MinuteExportView.swift in Sources */,
 				388358C825EEF6D200E024B2 /* BasalProfileEntry.swift in Sources */,
 				DDA9AC092D672CF100E6F1A9 /* AppVersionChecker.swift in Sources */,
 				DB0BA0010000000000000003 /* DevelopmentBranchAlerter.swift in Sources */,
@@ -5985,6 +6000,7 @@
 				FB9012AE66284A92A6531037 /* NightscoutUploadSerializerTests.swift in Sources */,
 				782BE9AEFDD94938A6F3EFE9 /* NightscoutImportRoundTripTests.swift in Sources */,
 				DDDD0FFB2F4E22C000F9C645 /* GlucoseSmoothingTests.swift in Sources */,
+				9F19F16A015C8C7BE15B1903 /* MinuteGlucoseExportTests.swift in Sources */,
 				DDDD0FFD2F4E22C000F9C645 /* GlucoseNativeConversionTests.swift in Sources */,
 				DDDD10A12F4E22C000F9C645 /* CarbsNativeConversionTests.swift in Sources */,
 				DDDD10B12F4E22C000F9C645 /* PumpHistoryNativeConversionTests.swift in Sources */,

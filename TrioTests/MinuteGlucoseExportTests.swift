@@ -1,0 +1,138 @@
+import Foundation
+import Testing
+
+@testable import Trio
+
+/// Fork feature (DIAforMary/Trio): 1-minute export to a second
+/// Nightscout-compatible server. Covers the Foundation-only parts.
+@Suite("MinuteGlucoseExport: queue, requests and URL checks") struct MinuteGlucoseExportTests {
+    private func entry(_ lifeCount: UInt16, secondsFromStart: TimeInterval = 0, mgdl: Int = 100) -> MinuteExportEntry {
+        MinuteExportEntry(
+            identifier: MinuteExportEntry.makeIdentifier(sensorSerial: "SN1", lifeCount: lifeCount),
+            mgdl: mgdl,
+            date: Date(timeIntervalSince1970: 1_800_000_000 + secondsFromStart),
+            direction: "Flat"
+        )
+    }
+
+    // MARK: - URL handling
+
+    @Test("Base URL: adds https, strips trailing slash, keeps token query") func normalizedBaseURL() {
+        #expect(MinuteExportRequest.normalizedBaseURL(from: " https://nsa.example.org/ ")?.absoluteString == "https://nsa.example.org")
+        #expect(MinuteExportRequest.normalizedBaseURL(from: "nsa.example.org")?.absoluteString == "https://nsa.example.org")
+        #expect(
+            MinuteExportRequest.normalizedBaseURL(from: "https://example.org/ns/?token=abc")?.absoluteString ==
+                "https://example.org/ns?token=abc"
+        )
+        #expect(MinuteExportRequest.normalizedBaseURL(from: "http://insecure.example.org") == nil)
+        #expect(MinuteExportRequest.normalizedBaseURL(from: "") == nil)
+        #expect(MinuteExportRequest.normalizedBaseURL(from: "https://") == nil)
+    }
+
+    @Test("Same-server check compares host case-insensitively and port") func sameServer() {
+        let primary = URL(string: "https://My-NS.example.org")!
+        #expect(MinuteExportRequest.isSameServer(URL(string: "https://my-ns.example.org/sub")!, primary))
+        #expect(MinuteExportRequest.isSameServer(URL(string: "https://my-ns.example.org:443")!, primary))
+        #expect(!MinuteExportRequest.isSameServer(URL(string: "https://my-ns.example.org:8443")!, primary))
+        #expect(!MinuteExportRequest.isSameServer(URL(string: "https://nocturne.example.org")!, primary))
+    }
+
+    @Test("Endpoint URL keeps path prefix and query items") func endpointURL() {
+        let base = URL(string: "https://example.org/ns?token=abc")!
+        #expect(
+            MinuteExportRequest.endpointURL(base: base, endpoint: "entries.json")?.absoluteString ==
+                "https://example.org/ns/api/v1/entries.json?token=abc"
+        )
+    }
+
+    // MARK: - Queue
+
+    @Test("Queue ignores duplicates and keeps oldest first") func queueDedupAndOrder() {
+        var queue = MinuteExportQueue()
+        #expect(queue.enqueue(entry(10, secondsFromStart: 600)))
+        #expect(queue.enqueue(entry(8, secondsFromStart: 480)))
+        #expect(queue.enqueue(entry(9, secondsFromStart: 540)))
+        #expect(!queue.enqueue(entry(9, secondsFromStart: 540)))
+        #expect(queue.pending.map(\.identifier) == ["libreloop-SN1-8", "libreloop-SN1-9", "libreloop-SN1-10"])
+    }
+
+    @Test("Queue drops the oldest entries above the cap") func queueCap() {
+        var queue = MinuteExportQueue()
+        for lifeCount in UInt16(1) ... 5 {
+            queue.enqueue(entry(lifeCount, secondsFromStart: TimeInterval(lifeCount) * 60), maxEntries: 3)
+        }
+        #expect(queue.pending.map(\.identifier) == ["libreloop-SN1-3", "libreloop-SN1-4", "libreloop-SN1-5"])
+    }
+
+    @Test("Uploaded entries leave the queue; cleared readings are not re-added") func queueUploadAndClear() {
+        var queue = MinuteExportQueue()
+        for lifeCount in UInt16(1) ... 4 {
+            queue.enqueue(entry(lifeCount, secondsFromStart: TimeInterval(lifeCount) * 60))
+        }
+        let batch = queue.nextBatch(limit: 2)
+        #expect(batch.map(\.identifier) == ["libreloop-SN1-1", "libreloop-SN1-2"])
+        queue.markUploaded(batch)
+        #expect(queue.pending.count == 2)
+
+        queue.clearPending()
+        #expect(queue.pending.isEmpty)
+        #expect(!queue.enqueue(entry(4, secondsFromStart: 240)))
+        #expect(queue.enqueue(entry(5, secondsFromStart: 300)))
+    }
+
+    @Test("Queue survives a JSON round trip") func queuePersistence() throws {
+        var queue = MinuteExportQueue()
+        queue.enqueue(entry(1))
+        let restored = try JSONDecoder().decode(MinuteExportQueue.self, from: JSONEncoder().encode(queue))
+        #expect(restored == queue)
+    }
+
+    // MARK: - Entries and requests
+
+    @Test("Entry encodes the Nightscout sgv fields") func entryEncoding() throws {
+        let data = try JSONEncoder().encode(entry(42, mgdl: 123))
+        let object = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        #expect(object["type"] as? String == "sgv")
+        #expect(object["sgv"] as? Int == 123)
+        #expect((object["date"] as? NSNumber)?.int64Value == 1_800_000_000_000)
+        #expect(object["dateString"] as? String == "2027-01-15T08:00:00.000Z")
+        #expect(object["direction"] as? String == "Flat")
+        #expect(object["device"] as? String == MinuteGlucoseExport.deviceName)
+        #expect(object["identifier"] as? String == "libreloop-SN1-42")
+    }
+
+    @Test("Upload request: POST entries.json with hashed api-secret") func uploadRequest() throws {
+        let base = URL(string: "https://nocturne.example.org")!
+        let request = try MinuteExportRequest.makeUploadRequest(base: base, secret: "test", entries: [entry(1)])
+        #expect(request.httpMethod == "POST")
+        #expect(request.url?.absoluteString == "https://nocturne.example.org/api/v1/entries.json")
+        #expect(request.value(forHTTPHeaderField: "api-secret") == "a94a8fe5ccb19ba61c4c0873d391e987982fbbd3")
+        let body = try JSONDecoder().decode([MinuteExportEntry].self, from: try #require(request.httpBody))
+        #expect(body == [entry(1)])
+    }
+
+    @Test("Upload request without secret sends no api-secret header") func uploadRequestWithoutSecret() throws {
+        let base = URL(string: "https://example.org?token=abc")!
+        let request = try MinuteExportRequest.makeUploadRequest(base: base, secret: "  ", entries: [entry(1)])
+        #expect(request.value(forHTTPHeaderField: "api-secret") == nil)
+    }
+
+    @Test("verifyauth answers from Nightscout and Nocturne are understood") func verifyAuthParsing() {
+        let ok = Data(#"{"status":200,"message":{"canRead":true,"canWrite":true,"isAdmin":true,"message":"OK"}}"#.utf8)
+        #expect(MinuteExportRequest.parseVerifyAuth(ok) == .init(authorized: true, canWrite: true))
+
+        let denied = Data(#"{"status":200,"message":{"canRead":false,"canWrite":false,"message":"UNAUTHORIZED"}}"#.utf8)
+        #expect(MinuteExportRequest.parseVerifyAuth(denied) == .init(authorized: false, canWrite: false))
+
+        #expect(MinuteExportRequest.parseVerifyAuth(Data("<html></html>".utf8)) == nil)
+    }
+
+    @Test("Backoff grows 1, 2, 4, 8 min and caps at 15 min") func backoff() {
+        #expect(MinuteExportRequest.backoff(afterFailures: 0) == 0)
+        #expect(MinuteExportRequest.backoff(afterFailures: 1) == 60)
+        #expect(MinuteExportRequest.backoff(afterFailures: 2) == 120)
+        #expect(MinuteExportRequest.backoff(afterFailures: 4) == 480)
+        #expect(MinuteExportRequest.backoff(afterFailures: 5) == 900)
+        #expect(MinuteExportRequest.backoff(afterFailures: 50) == 900)
+    }
+}
