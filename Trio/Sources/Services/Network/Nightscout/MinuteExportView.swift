@@ -12,6 +12,7 @@ struct MinuteExportView: View {
     @State private var resultIsError = false
     @State private var testing = false
     @State private var showInChart = false
+    @State private var bubbleMode: MinuteBubbleMode = .off
 
     @Environment(\.colorScheme) var colorScheme
     @Environment(AppState.self) var appState
@@ -80,15 +81,24 @@ struct MinuteExportView: View {
 
             // Fork feature (libre-1min-display)
             Section(
-                header: Text("Trio chart"),
+                header: Text("Trio display"),
                 footer: Text(
-                    "Shows the minute readings as small, faded dots behind the normal 5-minute dots on the home screen chart. Display only: the current value, delta, algorithm, alarms, statistics, Watch and Live Activity keep using 5-minute data. Works without the export above. Turning it off deletes the stored minute readings."
+                    "Display only. The algorithm, bolus calculator, alarms, statistics, Watch, Live Activity, HealthKit and Tidepool keep using Trio's 5-minute data. Chart: minute readings as small, faded dots behind the 5-minute dots. Glucose bubble: \"Small line\" keeps the 5-minute value big and adds the newest minute reading below it with its minute after the last 5-minute reading (+1 to +4). \"Main value\" shows the newest minute reading as the big number, marked \"1-min\", with the change over the last 5 minutes as delta; the bolus calculator still uses the last 5-minute value. Both work without the export above. When both are off, the stored minute readings are deleted."
                 )
             ) {
                 Toggle("Show minute readings in chart", isOn: $showInChart)
                     .onChange(of: showInChart) { _, newValue in
                         MinuteGlucoseStore.shared.setShownInChart(newValue)
                     }
+
+                Picker("Glucose bubble", selection: $bubbleMode) {
+                    Text("5-minute value only").tag(MinuteBubbleMode.off)
+                    Text("Small line with minute reading").tag(MinuteBubbleMode.smallLine)
+                    Text("Minute reading as main value").tag(MinuteBubbleMode.mainValue)
+                }
+                .onChange(of: bubbleMode) { _, newValue in
+                    MinuteGlucoseStore.shared.setBubbleMode(newValue)
+                }
             }
             .listRowBackground(Color.chart)
 
@@ -120,6 +130,7 @@ struct MinuteExportView: View {
             enabled = exporter.isEnabled
             target = exporter.target
             showInChart = MinuteGlucoseStore.shared.isShownInChart
+            bubbleMode = MinuteGlucoseStore.shared.bubbleMode
             urlString = exporter.configuredURLString
             secret = exporter.configuredSecret
         }

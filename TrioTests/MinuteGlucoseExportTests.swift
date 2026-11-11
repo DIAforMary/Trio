@@ -219,3 +219,49 @@ import Testing
         #expect(restored == buffer)
     }
 }
+
+/// Fork feature (branch libre-1min-display): what the glucose bubble shows.
+@Suite("MinuteBubbleInfo: minute reading in the glucose bubble") struct MinuteBubbleInfoTests {
+    private let now = Date(timeIntervalSince1970: 1_800_000_000)
+
+    /// Readings every minute, `count` of them, newest `newestSecondsAgo` before now.
+    private func readings(_ values: [Int], newestSecondsAgo: TimeInterval = 20) -> [MinuteGlucoseReading] {
+        values.enumerated().map { index, value in
+            let minutesBeforeNewest = Double(values.count - 1 - index)
+            return MinuteGlucoseReading(
+                id: "r\(index)",
+                date: now.addingTimeInterval(-newestSecondsAgo - minutesBeforeNewest * 60),
+                mgdl: value
+            )
+        }
+    }
+
+    @Test("Newest reading, minutes after the 5-minute reading, and 5-minute delta") func basic() throws {
+        // 7 readings: 100 ... 112; newest is 112, the one 5 minutes earlier is 102.
+        let list = readings([100, 102, 104, 106, 108, 110, 112])
+        let fiveMinuteDate = list[3].date // 5-minute reading = 106, 3 minutes before newest
+        let info = try #require(MinuteBubbleInfo.make(readings: list, lastFiveMinuteDate: fiveMinuteDate, now: now))
+        #expect(info.mgdl == 112)
+        #expect(info.minutesAfterFiveMinuteReading == 3)
+        #expect(info.fiveMinuteDelta == 10)
+    }
+
+    @Test("Newest reading equal to the 5-minute reading gives +0") func sameAsFiveMinute() throws {
+        let list = readings([100, 101])
+        let info = try #require(MinuteBubbleInfo.make(readings: list, lastFiveMinuteDate: list[1].date, now: now))
+        #expect(info.minutesAfterFiveMinuteReading == 0)
+    }
+
+    @Test("No delta without a reading about 5 minutes earlier") func noDelta() throws {
+        let list = readings([100, 102, 104])
+        let info = try #require(MinuteBubbleInfo.make(readings: list, lastFiveMinuteDate: nil, now: now))
+        #expect(info.fiveMinuteDelta == nil)
+        #expect(info.minutesAfterFiveMinuteReading == nil)
+    }
+
+    @Test("Stale or missing minute readings fall back (nil)") func stale() {
+        #expect(MinuteBubbleInfo.make(readings: [], lastFiveMinuteDate: now, now: now) == nil)
+        let old = readings([100, 101], newestSecondsAgo: 4 * 60)
+        #expect(MinuteBubbleInfo.make(readings: old, lastFiveMinuteDate: now, now: now) == nil)
+    }
+}

@@ -22,6 +22,15 @@ struct CurrentGlucoseView: View {
     /// Wall-clock end of the warmup window. Drives the warmup countdown tag.
     var cgmWarmupEndsAt: Date?
 
+    /// Fork feature (DIAforMary/Trio, branch libre-1min-display): Libre 3
+    /// minute readings of the last 15 minutes (oldest first) and how the
+    /// bubble shows them. DISPLAY ONLY: nothing here is stored, uploaded or
+    /// passed on; `glucose` (5-minute values from GlucoseStored) stays the
+    /// source for the arrow, freshness, staleness and everything outside
+    /// this view. With mode `.off` the bubble is exactly original Trio.
+    var minuteReadings: [MinuteGlucoseReading] = []
+    var minuteBubbleMode: MinuteBubbleMode = .off
+
     @State private var rotationDegrees: Double = 0.0
     @State private var angularGradient = AngularGradient(colors: [
         Color(red: 0.7215686275, green: 0.3411764706, blue: 1),
@@ -160,6 +169,32 @@ struct CurrentGlucoseView: View {
         .accessibilityLabel(Text(bobbleAccessibilityLabel))
     }
 
+    /// Newest fresh minute reading for the bubble, or `nil` (then the bubble
+    /// shows plain 5-minute data). Only while the 5-minute reading itself is
+    /// fresh, so all staleness handling stays with the 5-minute data.
+    private var minuteInfo: MinuteBubbleInfo? {
+        guard minuteBubbleMode != .off, isReadingFresh else { return nil }
+        return MinuteBubbleInfo.make(readings: minuteReadings, lastFiveMinuteDate: glucose.last?.date, now: Date())
+    }
+
+    /// `true` when the big number shows the minute reading.
+    private var showsMinuteAsMainValue: Bool {
+        minuteBubbleMode == .mainValue && minuteInfo != nil
+    }
+
+    /// Delta for the minute reading as main value: change over the last
+    /// 5 minutes of minute readings, so it keeps the usual 5-minute meaning.
+    private func minuteDelta(_ info: MinuteBubbleInfo) -> String {
+        guard let change = info.fiveMinuteDelta else { return "--" }
+        let value = units == .mmolL ? Decimal(change).asMmolL : Decimal(change)
+        return deltaFormatter.string(from: value as NSNumber) ?? "--"
+    }
+
+    private func minuteValueString(_ mgdl: Int) -> String {
+        if mgdl >= 400 { return "HIGH" }
+        return units == .mgdL ? Decimal(mgdl).description : Decimal(mgdl).formattedAsMmolL
+    }
+
     private var delta: String {
         guard glucose.count >= 2 else {
             return "--"
@@ -217,6 +252,18 @@ struct CurrentGlucoseView: View {
         guard let glucoseValue = glucose.last?.glucose, isReadingFresh else {
             return String(localized: "Glucose unavailable", comment: "Accessibility: no fresh glucose")
         }
+        // Fork feature (libre-1min-display)
+        if let info = minuteInfo {
+            if minuteBubbleMode == .mainValue {
+                var parts = [
+                    String(localized: "Glucose, 1-minute reading") + " \(minuteValueString(info.mgdl)) \(units.rawValue)"
+                ]
+                let change = minuteDelta(info)
+                if change != "--" { parts.append(String(localized: "change over 5 minutes") + " \(change)") }
+                parts.append(TimeAgoFormatter.minutesAgoAccessible(from: info.date))
+                return parts.joined(separator: ", ")
+            }
+        }
         let valueString = glucoseValue == 400
             ? String(localized: "high", comment: "Accessibility: glucose is at the top of the scale")
             : (units == .mgdL ? Decimal(glucoseValue).description : Decimal(glucoseValue).formattedAsMmolL)
@@ -227,6 +274,10 @@ struct CurrentGlucoseView: View {
             parts.append(String(localized: "delta", comment: "Accessibility: glucose delta") + " \(delta)")
         }
         parts.append(TimeAgoFormatter.minutesAgoAccessible(from: glucose.last?.date))
+        // Fork feature (libre-1min-display): small minute line.
+        if minuteBubbleMode == .smallLine, let info = minuteInfo, let line = minuteLineText(info) {
+            parts.append(line)
+        }
         // Fold in the sensor-lifecycle tag (warmup countdown, "expired", "stabilizing") so
         // it is spoken; the visual tag is a child that the ignore above would otherwise drop.
         if let tag = tagLabel, !trendIsDownward, !tag.text.isEmpty {
@@ -236,6 +287,47 @@ struct CurrentGlucoseView: View {
     }
 
     @ViewBuilder private func bobbleContent() -> some View {
+        if showsMinuteAsMainValue, let info = minuteInfo {
+            minuteMainValueContent(info)
+        } else {
+            fiveMinuteContent()
+        }
+    }
+
+    /// Fork feature (libre-1min-display): big number = newest minute reading,
+    /// delta = change over 5 minutes, small "1-min" marker.
+    @ViewBuilder private func minuteMainValueContent(_ info: MinuteBubbleInfo) -> some View {
+        Text("1-min")
+            .font(.system(size: 10, weight: .semibold, design: .rounded))
+            .foregroundStyle(.secondary)
+        HStack {
+            Text(minuteValueString(info.mgdl))
+                .font(.system(size: 40, weight: .bold, design: .rounded))
+                .foregroundStyle(glucoseColor(for: Int16(clamping: info.mgdl)))
+        }
+        HStack {
+            Group {
+                Text(TimeAgoFormatter.minutesAgo(from: info.date))
+                Text(minuteDelta(info))
+            }
+            .font(.callout).fontWeight(.bold)
+            .foregroundStyle(colorScheme == .dark ? Color.white.opacity(0.9) : Color.secondary)
+        }
+        .frame(alignment: .top)
+    }
+
+    /// Fork feature (libre-1min-display): "1-min 118 · +3 min". `nil` when the
+    /// newest minute reading is the 5-minute reading itself (nothing new).
+    private func minuteLineText(_ info: MinuteBubbleInfo) -> String? {
+        let value = minuteValueString(info.mgdl)
+        guard let minutes = info.minutesAfterFiveMinuteReading else {
+            return "1-min \(value)"
+        }
+        guard minutes >= 1 else { return nil }
+        return "1-min \(value) · +\(minutes) min"
+    }
+
+    @ViewBuilder private func fiveMinuteContent() -> some View {
         HStack {
             if let glucoseValue = glucose.last?.glucose, isReadingFresh {
                 let displayGlucose = units == .mgdL
@@ -261,6 +353,15 @@ struct CurrentGlucoseView: View {
                 .foregroundStyle(colorScheme == .dark ? Color.white.opacity(0.9) : Color.secondary)
             }
             .frame(alignment: .top)
+
+            // Fork feature (libre-1min-display): small minute line below.
+            if minuteBubbleMode == .smallLine, let info = minuteInfo, let line = minuteLineText(info) {
+                Text(line)
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
         }
     }
 

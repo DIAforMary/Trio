@@ -82,7 +82,10 @@ extension Home.RootView {
             cgmProgress: state.cgmProgressHighlight,
             cgmStatus: state.cgmDisplayState,
             cgmSensorExpiresAt: state.cgmSensorExpiresAt,
-            cgmWarmupEndsAt: state.cgmWarmupEndsAt
+            cgmWarmupEndsAt: state.cgmWarmupEndsAt,
+            // Fork feature (libre-1min-display): display-only minute reading.
+            minuteReadings: state.minuteGlucoseRecent,
+            minuteBubbleMode: state.minuteBubbleMode
         )
         .onTapGesture {
             if !state.cgmAvailable {

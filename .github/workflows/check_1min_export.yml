@@ -69,6 +69,7 @@ jobs:
             -parallel-testing-enabled NO \
             -only-testing:TrioTests/MinuteGlucoseExportTests \
             -only-testing:TrioTests/MinuteReadingBufferTests \
+            -only-testing:TrioTests/MinuteBubbleInfoTests \
             2>&1 | tee xcodebuild-test.log
 
       - name: Show errors

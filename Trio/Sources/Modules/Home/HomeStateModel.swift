@@ -100,6 +100,10 @@ extension Home {
         /// Fork feature (libre-1min-display): Libre 3 minute readings for the
         /// chart only, from a separate store; never used for calculations.
         var minuteGlucose: [MinuteGlucoseReading] = []
+        /// Fork feature (libre-1min-display): minute readings of the last
+        /// 15 minutes and the bubble mode, for the glucose bubble only.
+        var minuteGlucoseRecent: [MinuteGlucoseReading] = []
+        var minuteBubbleMode: MinuteBubbleMode = .off
         var latestTwoGlucoseValues: [GlucoseStored] = []
         var carbsFromPersistence: [CarbEntryStored] = []
         var fpusFromPersistence: [CarbEntryStored] = []
@@ -616,6 +620,14 @@ extension Home {
             MinuteGlucoseStore.shared.$chartReadings
                 .receive(on: DispatchQueue.main)
                 .sink { [weak self] readings in self?.minuteGlucose = readings }
+                .store(in: &lifetime)
+            MinuteGlucoseStore.shared.$recentReadings
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] readings in self?.minuteGlucoseRecent = readings }
+                .store(in: &lifetime)
+            MinuteGlucoseStore.shared.$bubbleMode
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] mode in self?.minuteBubbleMode = mode }
                 .store(in: &lifetime)
             fetchGlucoseManager.cgmProgressHighlight
                 .receive(on: DispatchQueue.main)

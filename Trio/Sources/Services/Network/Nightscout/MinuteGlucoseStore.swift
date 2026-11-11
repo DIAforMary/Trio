@@ -13,8 +13,10 @@ import Foundation
 //   replaced by the lighter `libre-1min-export` build or by original Trio at
 //   any time; the extra file is simply ignored there.
 //
-// The main chart shows these readings as small extra dots behind the normal
-// 5-minute dots when "Show minute readings in chart" is on.
+// Two display-only uses, each with its own switch (both off by default):
+// - the main chart shows them as small extra dots behind the 5-minute dots
+// - the glucose bubble can show the newest minute reading, either as a small
+//   line below the 5-minute value or as the main value (see MinuteBubbleMode)
 
 /// One minute reading for the chart.
 struct MinuteGlucoseReading: Codable, Equatable, Identifiable {
@@ -22,6 +24,71 @@ struct MinuteGlucoseReading: Codable, Equatable, Identifiable {
     let id: String
     let date: Date
     let mgdl: Int
+}
+
+/// How the glucose bubble on the home screen uses minute readings.
+enum MinuteBubbleMode: String, CaseIterable, Identifiable {
+    /// Unchanged Trio: only the 5-minute value.
+    case off
+    /// Big number stays the 5-minute value; a small line below shows the
+    /// newest minute reading and how many minutes after the 5-minute
+    /// reading it was taken (+1 ... +4).
+    case smallLine
+    /// Big number shows the newest minute reading; the delta is the change
+    /// over the last 5 minutes (not over 1 minute); a small "1-min" label
+    /// marks it.
+    case mainValue
+
+    var id: String { rawValue }
+}
+
+/// What the bubble shows for minute readings. Pure value, unit-tested.
+struct MinuteBubbleInfo: Equatable {
+    /// Newest minute reading.
+    let mgdl: Int
+    let date: Date
+    /// Whole minutes between Trio's last 5-minute reading and this reading
+    /// (1 ... 4 normally). `nil` if there is no 5-minute reading to compare.
+    let minutesAfterFiveMinuteReading: Int?
+    /// Newest minute value minus the minute value about 5 minutes earlier
+    /// (mg/dL). `nil` if no reading 5 minutes earlier (± 90 s) exists.
+    let fiveMinuteDelta: Int?
+
+    /// A minute reading older than this is ignored (the bubble then falls
+    /// back to plain 5-minute display).
+    static let maxAge: TimeInterval = 3 * 60
+
+    /// - Parameters:
+    ///   - readings: minute readings, oldest first.
+    ///   - lastFiveMinuteDate: date of Trio's newest 5-minute reading.
+    /// - Returns: `nil` when there is no fresh minute reading.
+    static func make(
+        readings: [MinuteGlucoseReading],
+        lastFiveMinuteDate: Date?,
+        now: Date = Date()
+    ) -> MinuteBubbleInfo? {
+        guard let latest = readings.last,
+              now.timeIntervalSince(latest.date) < maxAge,
+              latest.date <= now.addingTimeInterval(60)
+        else { return nil }
+
+        var minutesAfter: Int?
+        if let lastFiveMinuteDate {
+            minutesAfter = Int((latest.date.timeIntervalSince(lastFiveMinuteDate) / 60).rounded())
+        }
+
+        let targetDate = latest.date.addingTimeInterval(-5 * 60)
+        let reference = readings
+            .filter { abs($0.date.timeIntervalSince(targetDate)) <= 90 }
+            .min { abs($0.date.timeIntervalSince(targetDate)) < abs($1.date.timeIntervalSince(targetDate)) }
+
+        return MinuteBubbleInfo(
+            mgdl: latest.mgdl,
+            date: latest.date,
+            minutesAfterFiveMinuteReading: minutesAfter,
+            fiveMinuteDelta: reference.map { latest.mgdl - $0.mgdl }
+        )
+    }
 }
 
 /// Value type holding the readings; unit-tested without a sensor.
@@ -71,10 +138,17 @@ final class MinuteGlucoseStore: ObservableObject {
 
     /// UserDefaults: Bool, show minute readings in the main chart. Off by default.
     static let showInChartKey = "MinuteGlucoseExport.showInChart"
+    /// UserDefaults: String, raw value of `MinuteBubbleMode`. Off by default.
+    static let bubbleModeKey = "MinuteGlucoseExport.bubbleMode"
 
     /// Readings for the chart, published on the main thread. Empty while
     /// "Show minute readings in chart" is off.
     @Published private(set) var chartReadings: [MinuteGlucoseReading] = []
+    /// Readings of the last 15 minutes for the glucose bubble, published on
+    /// the main thread. Empty while the bubble mode is off.
+    @Published private(set) var recentReadings: [MinuteGlucoseReading] = []
+    /// Current bubble mode, published on the main thread.
+    @Published private(set) var bubbleMode: MinuteBubbleMode = .off
 
     // Accessed on `workQueue` only.
     private let workQueue = DispatchQueue(label: "MinuteGlucoseStore.workQueue")
@@ -88,6 +162,7 @@ final class MinuteGlucoseStore: ObservableObject {
         fileURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?
             .appendingPathComponent("MinuteGlucoseExport", isDirectory: true)
             .appendingPathComponent("chart-readings.json")
+        bubbleMode = defaults.string(forKey: Self.bubbleModeKey).flatMap(MinuteBubbleMode.init(rawValue:)) ?? .off
 
         workQueue.async { [weak self] in
             self?.load()
@@ -99,13 +174,35 @@ final class MinuteGlucoseStore: ObservableObject {
         defaults.bool(forKey: Self.showInChartKey)
     }
 
-    /// Turns the chart dots on or off. Turning them off also deletes the
-    /// stored minute readings. Call from the main thread.
+    private var storedBubbleMode: MinuteBubbleMode {
+        defaults.string(forKey: Self.bubbleModeKey).flatMap(MinuteBubbleMode.init(rawValue:)) ?? .off
+    }
+
+    /// `true` while any display feature needs minute readings.
+    private var isRecording: Bool {
+        isShownInChart || storedBubbleMode != .off
+    }
+
+    /// Turns the chart dots on or off. Call from the main thread.
+    /// When neither chart dots nor bubble use minute readings any more, the
+    /// stored minute readings are deleted.
     func setShownInChart(_ shown: Bool) {
         defaults.set(shown, forKey: Self.showInChartKey)
+        settingsChanged()
+    }
+
+    /// Sets the glucose bubble mode. Call from the main thread.
+    func setBubbleMode(_ mode: MinuteBubbleMode) {
+        defaults.set(mode.rawValue, forKey: Self.bubbleModeKey)
+        bubbleMode = mode
+        settingsChanged()
+    }
+
+    private func settingsChanged() {
+        let recording = isRecording
         workQueue.async { [weak self] in
             guard let self else { return }
-            if !shown {
+            if !recording {
                 self.buffer.removeAll()
                 self.persist()
             }
@@ -113,9 +210,9 @@ final class MinuteGlucoseStore: ObservableObject {
         }
     }
 
-    /// Records a minute reading (only while the chart dots are on).
+    /// Records a minute reading (only while a display feature is on).
     func record(_ reading: MinuteGlucoseReading) {
-        guard isShownInChart else { return }
+        guard isRecording else { return }
         workQueue.async { [weak self] in
             guard let self, self.buffer.add(reading) else { return }
             self.persist()
@@ -126,10 +223,16 @@ final class MinuteGlucoseStore: ObservableObject {
     // MARK: - Private (workQueue)
 
     private func publish() {
-        let readings = isShownInChart ? buffer.readings : []
+        let chart = isShownInChart ? buffer.readings : []
+        let cutoff = Date().addingTimeInterval(-15 * 60)
+        let recent = storedBubbleMode != .off ? buffer.readings.filter { $0.date >= cutoff } : []
         DispatchQueue.main.async { [weak self] in
-            if self?.chartReadings != readings {
-                self?.chartReadings = readings
+            guard let self else { return }
+            if self.chartReadings != chart {
+                self.chartReadings = chart
+            }
+            if self.recentReadings != recent {
+                self.recentReadings = recent
             }
         }
     }
