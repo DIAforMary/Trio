@@ -146,7 +146,7 @@ extension NightscoutConfig {
 
             if glucose.isNotEmpty {
                 do {
-                    // Fork feature (1-minute export, "Main Nightscout" target):
+                    // Fork feature (minute readings uploaded to the main Nightscout):
                     // the main Nightscout may hold 1-minute readings. Keep
                     // backfilled glucose at Trio's normal spacing: thin the
                     // fetched readings to at least 3.5 minutes apart, and

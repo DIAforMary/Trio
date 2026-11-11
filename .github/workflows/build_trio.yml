@@ -10,7 +10,7 @@ on:
 env:
   GH_PAT: ${{ secrets.GH_PAT }}
   UPSTREAM_REPO: nightscout/Trio
-  # Fork branch libre-1min-export: there is no branch of that name upstream, so sync it from upstream main.
+  # Fork test branch (libre-1min-display): there is no branch of that name upstream, so sync it from upstream main.
   UPSTREAM_BRANCH: main # branch on upstream repository to sync from (replace with specific branch name if needed)
   TARGET_BRANCH: ${{ github.ref_name }} # target branch on fork to be kept in sync
 

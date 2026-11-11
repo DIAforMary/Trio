@@ -20,7 +20,7 @@ final class PluginSource: GlucoseSource {
     var cgmManager: CGMManagerUI? {
         didSet {
             publishCGMStatus()
-            // Fork feature: 1-minute export to a second server (Libre 3 only).
+            // Fork feature: Libre 3 minute readings (upload + display).
             MinuteGlucoseExporter.shared.attach(to: cgmManager)
         }
     }
@@ -36,7 +36,7 @@ final class PluginSource: GlucoseSource {
         cgmManager?.cgmManagerDelegate = self
         // didSet doesn't fire from the defining class's own init.
         publishCGMStatus()
-        // Fork feature: 1-minute export to a second server (Libre 3 only).
+        // Fork feature: Libre 3 minute readings (upload + display).
         MinuteGlucoseExporter.shared.attach(to: cgmManager)
     }
 

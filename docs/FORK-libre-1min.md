@@ -1,8 +1,8 @@
 # Libre 3 minute readings – fork notes (DIAforMary/Trio)
 
 This fork is a personal test version, not an upstream contribution. The code in
-the branches `libre-1min-export` and `libre-1min-display` was written with
-Claude (AI) and is marked as such in every commit. It is not intended for a pull
+the branch `libre-1min-display` was written with Claude (AI) and is marked as
+such in every commit. It is not intended for a pull
 request to nightscout/Trio, whose contribution guidelines exclude largely
 AI-generated code.
 
@@ -11,11 +11,12 @@ AI-generated code.
 | Branch | Content |
 |---|---|
 | `main` | Unchanged upstream Trio, synced and built on schedule as usual |
-| `libre-1min-export` | Sends Libre 3 minute readings to Nightscout (second server, or main Nightscout experimental) |
-| `libre-1min-display` | Everything from `libre-1min-export`, plus minute readings in the home chart and, optionally, in the glucose bubble |
+| `libre-1min-display` | The single test branch: minute readings uploaded to the main Nightscout (experimental), shown in the home chart and, optionally, in the glucose bubble |
 
-All three use the same App ID and the same Core Data model, so TestFlight builds
-of any of them can replace each other without data loss.
+Both use the same App ID and the same Core Data model, so TestFlight builds of
+either can replace each other without data loss. (The former second test branch
+`libre-1min-export` and its "second server" option were merged into this branch
+and removed.)
 
 ## Where the minute readings come from
 
@@ -43,7 +44,7 @@ Minute readings are used in exactly three places:
 
 | Place | File | Effect |
 |---|---|---|
-| Upload | `MinuteGlucoseExporter.swift` | POST to `/api/v1/entries.json` of the chosen server |
+| Upload | `MinuteGlucoseExporter.swift` | POST to `/api/v1/entries.json` of Trio's main Nightscout |
 | Home chart | `MinuteGlucoseChartView.swift`, `MainChartView.swift` | Small faded dots behind the 5-minute dots |
 | Glucose bubble | `CurrentGlucoseView.swift` | Optional small line or main value (see below) |
 
@@ -71,27 +72,32 @@ Changes outside the new files:
 - `build_trio.yml`: branch builds sync from upstream `main`.
 - `check_1min_export.yml` (new): compile + unit tests, no TestFlight upload.
 
-## Settings (Settings > Nightscout > 1-Minute Export (Libre 3))
+## Settings (Settings > Nightscout > 1-Minute Readings (Libre 3))
 
 All options are off by default. With everything off, the app behaves like original Trio.
 
-### Export
-- **Enable 1-minute export**, **Send to**:
-  - **Second server** (recommended): every minute reading goes to a separate
-    Nightscout-compatible server (e.g. Nocturne), with its own URL and API secret.
-    The main Nightscout is refused as target here.
-  - **Main Nightscout (experimental)**: uses Trio's existing connection and sends
-    only the minute readings LibreLoop did not forward to Trio. Trio's own
-    5-minute entries are not touched. Document format matches Trio's uploads (no
-    `device`, no `identifier`, millisecond timestamp truncated like Trio's).
-    LoopFollow then shows deltas about 5 times smaller, and its fast-drop alarm
-    (drop per reading) may not fire.
+### Upload to main Nightscout (experimental)
+- **Upload minute readings** (then **Save**): uses Trio's existing Nightscout
+  connection (URL and API secret from Settings > Nightscout) and sends only the
+  minute readings LibreLoop did not forward to Trio. Trio's own 5-minute entries
+  are not touched and nothing is duplicated. Document format matches Trio's
+  uploads (`type`, `sgv`, `date`, `dateString`, `direction`; no `device`, no
+  `identifier`; millisecond timestamp truncated like Trio's).
+- Not possible without a main Nightscout configured in Trio.
+- LoopFollow then shows deltas about 5 times smaller, and its fast-drop alarm
+  (drop per reading) may not fire. Nightscout's own web page handles 1-minute
+  data (delta from 5-minute blocks).
+- Settings of the former "second server" option (URL, API secret, target) are
+  removed automatically on first start of this build, together with readings
+  still queued for it. If the export was set to the second server, the upload
+  is switched off, so it never starts sending to the main Nightscout without
+  being turned on deliberately.
 - Queue: up to 24 h of readings kept in `Application Support/MinuteGlucoseExport/queue.json`
   while the server is unreachable; retries with backoff 1, 2, 4, 8, 15 minutes.
   HTTP 400/413/422 drops the rejected batch; 401/403 shows "check API secret".
-- **Test connection** calls `/api/v1/verifyauth` and reports write access.
+- **Test connection** calls `/api/v1/verifyauth` on the main Nightscout and reports write access.
 
-### Trio display (branch `libre-1min-display` only)
+### Trio display
 - **Show minute readings in chart**: small faded dots behind the 5-minute dots.
 - **Glucose bubble**:
   - **5-minute value only**: original Trio.
@@ -115,8 +121,7 @@ All options are off by default. With everything off, the app behaves like origin
 
 No Core Data model change in either branch, so any build can replace any other.
 Files and settings of the fork (`MinuteGlucoseExport/*.json`, UserDefaults keys
-`MinuteGlucoseExport.*`, keychain item `MinuteGlucoseExport.secret`) are simply
-ignored by original Trio. The two branches share the same settings keys.
+`MinuteGlucoseExport.*`) are simply ignored by original Trio.
 
 ## Verification so far
 

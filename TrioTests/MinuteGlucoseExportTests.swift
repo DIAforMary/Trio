@@ -17,24 +17,17 @@ import Testing
 
     // MARK: - URL handling
 
-    @Test("Base URL: adds https, strips trailing slash, keeps token query") func normalizedBaseURL() {
+    @Test("Base URL: adds https, strips trailing slash, keeps token query and http") func normalizedBaseURL() {
         #expect(MinuteExportRequest.normalizedBaseURL(from: " https://nsa.example.org/ ")?.absoluteString == "https://nsa.example.org")
         #expect(MinuteExportRequest.normalizedBaseURL(from: "nsa.example.org")?.absoluteString == "https://nsa.example.org")
         #expect(
             MinuteExportRequest.normalizedBaseURL(from: "https://example.org/ns/?token=abc")?.absoluteString ==
                 "https://example.org/ns?token=abc"
         )
-        #expect(MinuteExportRequest.normalizedBaseURL(from: "http://insecure.example.org") == nil)
+        #expect(MinuteExportRequest.normalizedBaseURL(from: "http://local.example.org/")?.absoluteString == "http://local.example.org")
+        #expect(MinuteExportRequest.normalizedBaseURL(from: "ftp://example.org") == nil)
         #expect(MinuteExportRequest.normalizedBaseURL(from: "") == nil)
         #expect(MinuteExportRequest.normalizedBaseURL(from: "https://") == nil)
-    }
-
-    @Test("Same-server check compares host case-insensitively and port") func sameServer() {
-        let primary = URL(string: "https://My-NS.example.org")!
-        #expect(MinuteExportRequest.isSameServer(URL(string: "https://my-ns.example.org/sub")!, primary))
-        #expect(MinuteExportRequest.isSameServer(URL(string: "https://my-ns.example.org:443")!, primary))
-        #expect(!MinuteExportRequest.isSameServer(URL(string: "https://my-ns.example.org:8443")!, primary))
-        #expect(!MinuteExportRequest.isSameServer(URL(string: "https://nocturne.example.org")!, primary))
     }
 
     @Test("Endpoint URL keeps path prefix and query items") func endpointURL() {
@@ -106,36 +99,27 @@ import Testing
     }
 
     @Test("Upload request: POST entries.json with hashed api-secret") func uploadRequest() throws {
-        let base = URL(string: "https://nocturne.example.org")!
-        let request = try MinuteExportRequest.makeUploadRequest(
-            base: base,
-            secret: "test",
-            entries: [entry(1)],
-            target: .secondServer
-        )
+        let base = URL(string: "https://my-ns.example.org")!
+        let request = try MinuteExportRequest.makeUploadRequest(base: base, secret: "test", entries: [entry(1)])
         #expect(request.httpMethod == "POST")
-        #expect(request.url?.absoluteString == "https://nocturne.example.org/api/v1/entries.json")
+        #expect(request.url?.absoluteString == "https://my-ns.example.org/api/v1/entries.json")
         #expect(request.value(forHTTPHeaderField: "api-secret") == "a94a8fe5ccb19ba61c4c0873d391e987982fbbd3")
-        let body = try JSONDecoder().decode([MinuteExportEntry].self, from: try #require(request.httpBody))
-        #expect(body == [entry(1)])
     }
 
-    @Test("Main Nightscout target sends Trio's format: no device, no identifier") func primaryTargetDocument() throws {
+    @Test("Upload uses Trio's format: no device, no identifier") func uploadDocumentFormat() throws {
         let base = URL(string: "https://my-ns.example.org")!
-        let request = try MinuteExportRequest.makeUploadRequest(
-            base: base,
-            secret: "test",
-            entries: [entry(7, mgdl: 140)],
-            target: .primaryNightscout
-        )
+        let request = try MinuteExportRequest.makeUploadRequest(base: base, secret: "test", entries: [entry(7, mgdl: 140)])
         let body = try #require(request.httpBody)
         let array = try #require(try JSONSerialization.jsonObject(with: body) as? [[String: Any]])
         let object = try #require(array.first)
+        #expect(array.count == 1)
         #expect(object["device"] == nil)
         #expect(object["identifier"] == nil)
         #expect(object["type"] as? String == "sgv")
         #expect(object["sgv"] as? Int == 140)
+        #expect((object["date"] as? NSNumber)?.int64Value == 1_800_000_000_000)
         #expect(object["dateString"] as? String == "2027-01-15T08:00:00.000Z")
+        #expect(object["direction"] as? String == "Flat")
     }
 
     @Test("Timestamps are truncated to the millisecond, like Trio's uploads") func dateTruncation() {
@@ -146,12 +130,7 @@ import Testing
 
     @Test("Upload request without secret sends no api-secret header") func uploadRequestWithoutSecret() throws {
         let base = URL(string: "https://example.org?token=abc")!
-        let request = try MinuteExportRequest.makeUploadRequest(
-            base: base,
-            secret: "  ",
-            entries: [entry(1)],
-            target: .secondServer
-        )
+        let request = try MinuteExportRequest.makeUploadRequest(base: base, secret: "  ", entries: [entry(1)])
         #expect(request.value(forHTTPHeaderField: "api-secret") == nil)
     }
 

@@ -1,13 +1,10 @@
 import SwiftUI
 
-/// Settings > Nightscout > 1-Minute Export (fork feature, DIAforMary/Trio).
+/// Settings > Nightscout > 1-Minute Readings (Libre 3) (fork feature, DIAforMary/Trio).
 struct MinuteExportView: View {
     @ObservedObject private var exporter = MinuteGlucoseExporter.shared
 
     @State private var enabled = false
-    @State private var target: MinuteExportTarget = .secondServer
-    @State private var urlString = ""
-    @State private var secret = ""
     @State private var resultMessage: String?
     @State private var resultIsError = false
     @State private var testing = false
@@ -20,40 +17,23 @@ struct MinuteExportView: View {
     var body: some View {
         List {
             Section(
-                header: Text("1-minute readings"),
+                header: Text("Upload to main Nightscout (experimental)"),
                 footer: Text(
-                    "Sends FreeStyle Libre 3 / 3+ minute readings to Nightscout. Trio's own glucose data, the algorithm and its alarms do not change. Changes take effect when you tap Save."
+                    "Adds the FreeStyle Libre 3 / 3+ minute readings that Trio does not upload itself to your main Nightscout, using Trio's existing Nightscout connection. Trio's own 5-minute entries, the algorithm and its alarms do not change. Changes take effect when you tap Save."
                 )
             ) {
-                Toggle("Enable 1-minute export", isOn: $enabled)
+                Toggle("Upload minute readings", isOn: $enabled)
 
-                Picker("Send to", selection: $target) {
-                    Text("Second server").tag(MinuteExportTarget.secondServer)
-                    Text("Main Nightscout (experimental)").tag(MinuteExportTarget.primaryNightscout)
-                }
+                Text(
+                    "Follower apps built for 5-minute data will see 1-minute data: LoopFollow then shows deltas about 5 times smaller, and its fast-drop alarm, which counts the drop per reading, may not fire. Nightscout's own web page handles 1-minute data. Only use this while nobody relies on follower-app alarms."
+                )
+                .font(.footnote)
+                .foregroundColor(.orange)
 
-                if target == .secondServer {
-                    TextField("https://your-nocturne.example.com", text: $urlString)
-                        .keyboardType(.URL)
-                        .textContentType(.URL)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-
-                    SecureField("API secret", text: $secret)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-
-                    Text(
-                        "All minute readings go to this separate server, for example Nocturne. Your main Nightscout keeps getting 5-minute data. Use the second server for viewing only; do not connect LoopFollow or other follower apps to it."
-                    )
-                    .font(.footnote)
-                    .foregroundColor(.secondary)
-                } else {
-                    Text(
-                        "Experimental: the minute readings Trio does not upload itself are added to your main Nightscout, using Trio's existing connection. Follower apps built for 5-minute data will see 1-minute data: LoopFollow then shows deltas about 5 times smaller, and its fast-drop alarm, which counts the drop per reading, may not fire. Only use this while nobody relies on those follower alarms."
-                    )
-                    .font(.footnote)
-                    .foregroundColor(.orange)
+                if !exporter.hasPrimaryNightscout {
+                    Text("No main Nightscout is connected in Trio. Please set it up under Settings > Nightscout first.")
+                        .font(.footnote)
+                        .foregroundColor(.red)
                 }
 
                 Button("Save") { save() }
@@ -69,7 +49,7 @@ struct MinuteExportView: View {
                         }
                     }
                 }
-                .disabled(testing || (target == .secondServer && urlString.trimmingCharacters(in: .whitespaces).isEmpty))
+                .disabled(testing || !exporter.hasPrimaryNightscout)
 
                 if let resultMessage {
                     Text(resultMessage)
@@ -79,11 +59,11 @@ struct MinuteExportView: View {
             }
             .listRowBackground(Color.chart)
 
-            // Fork feature (libre-1min-display)
+            // Fork feature (DIAforMary/Trio)
             Section(
                 header: Text("Trio display"),
                 footer: Text(
-                    "Display only. The algorithm, bolus calculator, alarms, statistics, Watch, Live Activity, HealthKit and Tidepool keep using Trio's 5-minute data. Chart: minute readings as small, faded dots behind the 5-minute dots. Glucose bubble: \"Small line\" keeps the 5-minute value big and adds the newest minute reading below it with its minute after the last 5-minute reading (+1 to +4). \"Main value\" shows the newest minute reading as the big number, marked \"1-min\", with the change over the last 5 minutes as delta; the bolus calculator still uses the last 5-minute value. Both work without the export above. When both are off, the stored minute readings are deleted."
+                    "Display only. The algorithm, bolus calculator, alarms, statistics, Watch, Live Activity, HealthKit and Tidepool keep using Trio's 5-minute data. Chart: minute readings as small, faded dots behind the 5-minute dots. Glucose bubble: \"Small line\" keeps the 5-minute value big and adds the newest minute reading below it with its minute after the last 5-minute reading (+1 to +4). \"Main value\" shows the newest minute reading as the big number, marked \"1-min\", with the change over the last 5 minutes as delta; the bolus calculator still uses the last 5-minute value. Both work without the upload above. When both are off, the stored minute readings are deleted."
                 )
             ) {
                 Toggle("Show minute readings in chart", isOn: $showInChart)
@@ -104,13 +84,7 @@ struct MinuteExportView: View {
 
             Section(header: Text("Status")) {
                 statusRow("Libre 3 (LibreLoop) connected", exporter.status.isLibreLoopActive ? "Yes" : "No")
-                statusRow("Export", exporter.isEnabled ? "On" : "Off")
-                statusRow(
-                    "Sending to",
-                    exporter.target == .secondServer
-                        ? String(localized: "Second server")
-                        : String(localized: "Main Nightscout")
-                )
+                statusRow("Upload", exporter.isEnabled ? "On" : "Off")
                 statusRow("Waiting to upload", "\(exporter.status.pendingCount)")
                 statusRow("Last upload", formatted(exporter.status.lastUploadAt))
                 statusRow("Newest reading uploaded", formatted(exporter.status.lastUploadedReadingAt))
@@ -122,17 +96,14 @@ struct MinuteExportView: View {
             }
             .listRowBackground(Color.chart)
         }
-        .navigationTitle("1-Minute Export")
+        .navigationTitle("1-Minute Readings")
         .navigationBarTitleDisplayMode(.automatic)
         .scrollContentBackground(.hidden)
         .background(appState.trioBackgroundColor(for: colorScheme))
         .onAppear {
             enabled = exporter.isEnabled
-            target = exporter.target
             showInChart = MinuteGlucoseStore.shared.isShownInChart
             bubbleMode = MinuteGlucoseStore.shared.bubbleMode
-            urlString = exporter.configuredURLString
-            secret = exporter.configuredSecret
         }
     }
 
@@ -151,12 +122,11 @@ struct MinuteExportView: View {
 
     private func save() {
         do {
-            try exporter.saveSettings(enabled: enabled, target: target, urlString: urlString, secret: secret)
-            urlString = exporter.configuredURLString
+            try exporter.saveSettings(enabled: enabled)
             resultIsError = false
             resultMessage = enabled
-                ? String(localized: "Saved. 1-minute export is ON.")
-                : String(localized: "Saved. 1-minute export is OFF.")
+                ? String(localized: "Saved. Upload of minute readings is ON.")
+                : String(localized: "Saved. Upload of minute readings is OFF.")
         } catch {
             resultIsError = true
             resultMessage = error.localizedDescription
@@ -166,7 +136,7 @@ struct MinuteExportView: View {
     private func test() {
         testing = true
         resultMessage = nil
-        exporter.testConnection(target: target, urlString: urlString, secret: secret) { result in
+        exporter.testConnection { result in
             testing = false
             switch result {
             case let .success(message):

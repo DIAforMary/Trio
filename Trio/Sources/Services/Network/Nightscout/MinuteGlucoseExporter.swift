@@ -7,10 +7,11 @@ import LoopKitUI
 //
 // Listens to LibreLoop's public `LibreLoopStateObserver` hook, which fires
 // for every reading the sensor delivers (independent of LibreLoop's 270 s
-// forwarding throttle), and uploads the readings to the target chosen in
-// Settings > Nightscout > 1-Minute Export (Libre 3): a second
-// Nightscout-compatible server (all readings), or, experimentally, Trio's
-// main Nightscout (only the readings Trio does not upload itself).
+// forwarding throttle), and, when enabled in Settings > Nightscout >
+// 1-Minute Export (Libre 3), uploads them to Trio's main Nightscout through
+// Trio's existing Nightscout connection. Only the readings Trio does not
+// upload itself are sent (EXPERIMENTAL: follower apps built for 5-minute
+// data, e.g. LoopFollow, will see 1-minute data).
 //
 // Nothing here writes to Trio's glucose store or talks to the algorithm.
 // See MinuteGlucoseExport.swift for the design rules.
@@ -27,20 +28,12 @@ final class MinuteGlucoseExporter: ObservableObject {
     }
 
     enum SettingsError: LocalizedError {
-        case invalidURL
-        case sameAsPrimaryNightscout
         case noPrimaryNightscout
 
         var errorDescription: String? {
             switch self {
-            case .invalidURL:
-                return String(localized: "Please enter a valid https:// URL.")
-            case .sameAsPrimaryNightscout:
-                return String(
-                    localized: "This is your primary Nightscout. To send minute readings there, choose \"Main Nightscout (experimental)\" instead."
-                )
             case .noPrimaryNightscout:
-                return String(localized: "No main Nightscout is connected in Trio.")
+                return String(localized: "No main Nightscout is connected in Trio. Please set it up under Settings > Nightscout first.")
             }
         }
     }
@@ -80,6 +73,7 @@ final class MinuteGlucoseExporter: ObservableObject {
 
         workQueue.async { [weak self] in
             self?.loadQueue()
+            self?.removeLegacySecondServerSettings()
             self?.publishStatus()
         }
     }
@@ -90,17 +84,9 @@ final class MinuteGlucoseExporter: ObservableObject {
         defaults.bool(forKey: MinuteGlucoseExport.Keys.enabled)
     }
 
-    var configuredURLString: String {
-        defaults.string(forKey: MinuteGlucoseExport.Keys.url) ?? ""
-    }
-
-    var configuredSecret: String {
-        let secret: String? = keychain.getValue(String.self, forKey: MinuteGlucoseExport.Keys.secret)
-        return secret ?? ""
-    }
-
-    var target: MinuteExportTarget {
-        defaults.string(forKey: MinuteGlucoseExport.Keys.target).flatMap(MinuteExportTarget.init(rawValue:)) ?? .secondServer
+    /// `true` when Trio has a main Nightscout URL configured.
+    var hasPrimaryNightscout: Bool {
+        primaryNightscoutURL != nil
     }
 
     private var primaryNightscoutSecret: String {
@@ -114,54 +100,21 @@ final class MinuteGlucoseExporter: ObservableObject {
         return URL(string: urlString)
     }
 
-    /// Validates and stores the settings. Call from the main thread.
-    /// Turning the export off, or changing the target, drops readings that
-    /// are still waiting.
-    func saveSettings(enabled: Bool, target newTarget: MinuteExportTarget, urlString: String, secret: String) throws {
-        let trimmedURL = urlString.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        if newTarget == .primaryNightscout, enabled, primaryNightscoutURL == nil {
+    /// Stores the settings. Call from the main thread.
+    /// Turning the export off drops readings that are still waiting.
+    func saveSettings(enabled: Bool) throws {
+        if enabled, primaryNightscoutURL == nil {
             throw SettingsError.noPrimaryNightscout
         }
 
-        // The second-server URL and secret are only checked and stored while
-        // that target is selected; with the main Nightscout target they are
-        // kept as they were, so switching back later needs no re-typing.
-        if newTarget == .secondServer {
-            if enabled || !trimmedURL.isEmpty {
-                guard let base = MinuteExportRequest.normalizedBaseURL(from: trimmedURL) else {
-                    throw SettingsError.invalidURL
-                }
-                if let primary = primaryNightscoutURL, MinuteExportRequest.isSameServer(base, primary) {
-                    throw SettingsError.sameAsPrimaryNightscout
-                }
-                defaults.set(base.absoluteString, forKey: MinuteGlucoseExport.Keys.url)
-            } else {
-                defaults.removeObject(forKey: MinuteGlucoseExport.Keys.url)
-            }
-
-            let trimmedSecret = secret.trimmingCharacters(in: .whitespacesAndNewlines)
-            if trimmedSecret.isEmpty {
-                keychain.removeObject(forKey: MinuteGlucoseExport.Keys.secret)
-            } else {
-                keychain.setValue(trimmedSecret, forKey: MinuteGlucoseExport.Keys.secret)
-            }
-        }
-
-        let targetChanged = newTarget != target
-        defaults.set(newTarget.rawValue, forKey: MinuteGlucoseExport.Keys.target)
         defaults.set(enabled, forKey: MinuteGlucoseExport.Keys.enabled)
-        debug(.nightscout, "1-min export settings saved, enabled: \(enabled), target: \(newTarget.rawValue)")
+        debug(.nightscout, "1-min export settings saved, enabled: \(enabled)")
 
         workQueue.async { [weak self] in
             guard let self else { return }
             self.consecutiveFailures = 0
             self.nextAttemptAt = .distantPast
             self.lastError = nil
-            if targetChanged {
-                self.exportQueue.clearPending()
-                self.persistQueue()
-            }
             if enabled {
                 self.uploadIfNeeded()
             } else {
@@ -172,24 +125,13 @@ final class MinuteGlucoseExporter: ObservableObject {
         }
     }
 
-    /// Checks URL and secret against `/api/v1/verifyauth`. Calls back on main.
-    /// For the main Nightscout target, Trio's own Nightscout connection is tested.
-    func testConnection(
-        target testTarget: MinuteExportTarget,
-        urlString: String,
-        secret: String,
-        completion: @escaping (Result<String, Error>) -> Void
-    ) {
-        let request: URLRequest
-        switch resolveServer(for: testTarget, urlString: urlString, secret: secret) {
-        case let .success(server):
-            guard let verify = MinuteExportRequest.makeVerifyAuthRequest(base: server.base, secret: server.secret) else {
-                DispatchQueue.main.async { completion(.failure(SettingsError.invalidURL)) }
-                return
-            }
-            request = verify
-        case let .failure(error):
-            DispatchQueue.main.async { completion(.failure(error)) }
+    /// Checks Trio's main Nightscout connection against `/api/v1/verifyauth`.
+    /// Calls back on main.
+    func testConnection(completion: @escaping (Result<String, Error>) -> Void) {
+        guard let server = resolvePrimaryNightscout(),
+              let request = MinuteExportRequest.makeVerifyAuthRequest(base: server.base, secret: server.secret)
+        else {
+            DispatchQueue.main.async { completion(.failure(SettingsError.noPrimaryNightscout)) }
             return
         }
 
@@ -213,7 +155,7 @@ final class MinuteGlucoseExporter: ObservableObject {
                 }
             } else {
                 result = .failure(Self.message(
-                    String(localized: "Unexpected answer. Is this the address of a Nightscout or Nocturne server?")
+                    String(localized: "Unexpected answer from the main Nightscout.")
                 ))
             }
             DispatchQueue.main.async { completion(result) }
@@ -255,30 +197,31 @@ final class MinuteGlucoseExporter: ObservableObject {
         }
     }
 
-    /// URL and secret for a target. The second server must not be the main
-    /// Nightscout; the main Nightscout target uses Trio's own connection.
-    private func resolveServer(
-        for target: MinuteExportTarget,
-        urlString: String,
-        secret: String
-    ) -> Result<(base: URL, secret: String), Error> {
-        switch target {
-        case .secondServer:
-            guard let base = MinuteExportRequest.normalizedBaseURL(from: urlString) else {
-                return .failure(SettingsError.invalidURL)
-            }
-            if let primary = primaryNightscoutURL, MinuteExportRequest.isSameServer(base, primary) {
-                return .failure(SettingsError.sameAsPrimaryNightscout)
-            }
-            return .success((base, secret))
-        case .primaryNightscout:
-            guard let primary = primaryNightscoutURL,
-                  let base = MinuteExportRequest.normalizedBaseURL(from: primary.absoluteString)
-            else {
-                return .failure(SettingsError.noPrimaryNightscout)
-            }
-            return .success((base, primaryNightscoutSecret))
+    /// URL and secret of Trio's own (main) Nightscout connection.
+    private func resolvePrimaryNightscout() -> (base: URL, secret: String)? {
+        guard let primary = primaryNightscoutURL,
+              let base = MinuteExportRequest.normalizedBaseURL(from: primary.absoluteString)
+        else { return nil }
+        return (base, primaryNightscoutSecret)
+    }
+
+    /// Earlier test builds had a "second server" option. Remove its stored
+    /// URL, secret and target once, and drop readings queued for it.
+    private func removeLegacySecondServerSettings() {
+        dispatchPrecondition(condition: .onQueue(workQueue))
+        let legacyKeys = [MinuteGlucoseExport.LegacyKeys.url, MinuteGlucoseExport.LegacyKeys.target]
+        guard legacyKeys.contains(where: { defaults.object(forKey: $0) != nil }) else { return }
+        // If the export was set to the second server (the old default), do
+        // not silently start uploading to the main Nightscout: switch it off.
+        // The user turns it on again deliberately.
+        if defaults.string(forKey: MinuteGlucoseExport.LegacyKeys.target) != "primaryNightscout" {
+            defaults.set(false, forKey: MinuteGlucoseExport.Keys.enabled)
         }
+        legacyKeys.forEach { defaults.removeObject(forKey: $0) }
+        keychain.removeObject(forKey: MinuteGlucoseExport.LegacyKeys.secret)
+        exportQueue.clearPending()
+        persistQueue()
+        debug(.nightscout, "1-min export: removed settings of the former second-server option")
     }
 
     // MARK: - Queue and upload (workQueue)
@@ -298,13 +241,8 @@ final class MinuteGlucoseExporter: ObservableObject {
         let batch = exportQueue.nextBatch()
         guard !batch.isEmpty else { return }
 
-        let currentTarget = target
-        let server: (base: URL, secret: String)
-        switch resolveServer(for: currentTarget, urlString: configuredURLString, secret: configuredSecret) {
-        case let .success(resolved):
-            server = resolved
-        case let .failure(error):
-            lastError = error.localizedDescription
+        guard let server = resolvePrimaryNightscout() else {
+            lastError = SettingsError.noPrimaryNightscout.errorDescription
             publishStatus()
             return
         }
@@ -314,8 +252,7 @@ final class MinuteGlucoseExporter: ObservableObject {
             request = try MinuteExportRequest.makeUploadRequest(
                 base: server.base,
                 secret: server.secret,
-                entries: batch,
-                target: currentTarget
+                entries: batch
             )
         } catch {
             registerFailure(error.localizedDescription)
@@ -460,23 +397,21 @@ extension MinuteGlucoseExporter: LibreLoopStateObserver {
 
         let identifier = MinuteExportEntry.makeIdentifier(sensorSerial: state.sensorSerial, lifeCount: sample.lifeCount)
 
-        // Display branch: keep every minute reading for the chart, in a
-        // separate store (never in Trio's glucose table). No-op unless
-        // "Show minute readings in chart" is on.
+        // Keep every minute reading for the chart and the glucose bubble, in
+        // a separate store (never in Trio's glucose table). No-op unless one
+        // of the display options is on.
         MinuteGlucoseStore.shared.record(
             MinuteGlucoseReading(id: identifier, date: sample.date, mgdl: Int(sample.valueMgDL))
         )
 
         guard isEnabled else { return }
 
-        if target == .primaryNightscout {
-            // Trio uploads the readings LibreLoop forwards to it (about every
-            // 5 minutes) itself; send only the ones LibreLoop held back, so
-            // Trio's own entries stay untouched and nothing is duplicated.
-            // Until LibreLoop has decided (wasForwarded false and no skip
-            // reason yet), wait: it notifies again once the outcome is set.
-            if sample.wasForwarded || sample.forwardSkipReason == nil { return }
-        }
+        // Trio uploads the readings LibreLoop forwards to it (about every
+        // 5 minutes) itself; send only the ones LibreLoop held back, so
+        // Trio's own entries stay untouched and nothing is duplicated.
+        // Until LibreLoop has decided (wasForwarded false and no skip
+        // reason yet), wait: it notifies again once the outcome is set.
+        if sample.wasForwarded || sample.forwardSkipReason == nil { return }
 
         let entry = MinuteExportEntry(
             identifier: identifier,
