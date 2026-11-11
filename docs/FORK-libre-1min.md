@@ -244,10 +244,9 @@ New files: `MinuteGlucoseExport.swift`, `MinuteGlucoseExporter.swift`,
 ### 5.4 What has been verified, and what not
 
 - ✅ Compiles in GitHub Actions (iOS Simulator).
-- ✅ 22 unit tests in 3 groups (queue, upload format, URL handling, display store, bubble
-  logic) passed on the version before the second-server removal. The current version
-  still needs its check run (GitHub had no Mac capacity on 11 Nov 2026).
-- ✅ Earlier builds of this branch were built and uploaded to TestFlight successfully.
+- ✅ 21 unit tests in 3 groups (queue, upload format, URL handling, display store, bubble
+  logic) passed on the current version (commit `b13b951`).
+- ✅ Built and uploaded to TestFlight: **Trio 1.0.2 (68)**, 11 Nov 2026.
 - ❌ **Not yet tested on a real phone with a sensor.** Test during the day first, with the
   phone at hand.
 
@@ -328,10 +327,10 @@ follower app's) alarms. Chart dots and bubble have no effect on followers.
 4. Wait for all jobs to be green (about 30–60 minutes). The build is uploaded to
    TestFlight automatically; Apple needs another 10–30 minutes to process it.
 5. In TestFlight the build's notes ("What to Test") start with `libre-1min-display` and
-   the commit, e.g. `libre-1min-display b13b951`.
+   the commit, e.g. `libre-1min-display 0be80af`.
 
 Optional, before building: **Actions → "zz Check 1-min export (compile + tests)" → Run
-workflow → Branch `libre-1min-display`** compiles the app and runs the 22 tests without
+workflow → Branch `libre-1min-display`** compiles the app and runs the 21 tests without
 uploading anything. Useful after larger Trio updates.
 
 ### 8.3 When to rebuild the test branch
@@ -413,7 +412,7 @@ with the Trio maintainers (feature request #1728, Discord). Suggested procedure:
 
 | Date / time | Build | Settings (upload / dots / bubble) | Observation | Screenshot | Follow-up |
 |---|---|---|---|---|---|
-| 2026-11-12 09:30 | 68 / b13b951 | off / on / small line | Dots every minute, line +1…+4 OK | IMG_0001 | – |
+| 2026-11-12 09:30 | 68 / 0be80af | off / on / small line | Dots every minute, line +1…+4 OK | IMG_0001 | – |
 | | | | | | |
 
 ### 10.5 Sharing results
