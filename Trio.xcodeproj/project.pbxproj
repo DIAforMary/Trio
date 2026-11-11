@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		F4280EF3061F2005CA72236B /* MinuteGlucoseChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B171FD2B21BD341DAD2FCED6 /* MinuteGlucoseChartView.swift */; };
+		76069091C99F8E35DE158772 /* MinuteGlucoseStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B63B6C409A54FB4E5641B2C4 /* MinuteGlucoseStore.swift */; };
 		C47CAF36E5B76C463CA8A443 /* MinuteGlucoseExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F310916FA04E838023A0F8F /* MinuteGlucoseExport.swift */; };
 		C21982002F3E5C4DDD97994D /* MinuteGlucoseExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38403810083884760586FA24 /* MinuteGlucoseExporter.swift */; };
 		368375FAEAC3EAAF9C633885 /* MinuteExportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD40E7BC0D4FACB9B47043B6 /* MinuteExportView.swift */; };
@@ -1110,6 +1112,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		B171FD2B21BD341DAD2FCED6 /* MinuteGlucoseChartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MinuteGlucoseChartView.swift; sourceTree = "<group>"; };
+		B63B6C409A54FB4E5641B2C4 /* MinuteGlucoseStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MinuteGlucoseStore.swift; sourceTree = "<group>"; };
 		4F310916FA04E838023A0F8F /* MinuteGlucoseExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MinuteGlucoseExport.swift; sourceTree = "<group>"; };
 		38403810083884760586FA24 /* MinuteGlucoseExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MinuteGlucoseExporter.swift; sourceTree = "<group>"; };
 		CD40E7BC0D4FACB9B47043B6 /* MinuteExportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MinuteExportView.swift; sourceTree = "<group>"; };
@@ -3956,6 +3960,7 @@
 				DD2CC85B2D25D9CE00445446 /* GlucoseTargetsView.swift */,
 				BDDAF9EE2D00553E00B34E7A /* ChartSelectionRow.swift */,
 				582DF9742C8CDB92001F516D /* GlucoseChartView.swift */,
+				B171FD2B21BD341DAD2FCED6 /* MinuteGlucoseChartView.swift */,
 				582DF9762C8CDBE7001F516D /* InsulinView.swift */,
 				582DF97A2C8CE209001F516D /* CarbView.swift */,
 				58D08B212C8DAA8E00AA37D3 /* OverrideView.swift */,
@@ -4545,6 +4550,7 @@
 				4F310916FA04E838023A0F8F /* MinuteGlucoseExport.swift */,
 				38403810083884760586FA24 /* MinuteGlucoseExporter.swift */,
 				CD40E7BC0D4FACB9B47043B6 /* MinuteExportView.swift */,
+				B63B6C409A54FB4E5641B2C4 /* MinuteGlucoseStore.swift */,
 				DD906BF52EA6AAE900262772 /* BaseNightscoutManager+Subscribers.swift */,
 			);
 			path = Nightscout;
@@ -5426,6 +5432,7 @@
 				C47CAF36E5B76C463CA8A443 /* MinuteGlucoseExport.swift in Sources */,
 				C21982002F3E5C4DDD97994D /* MinuteGlucoseExporter.swift in Sources */,
 				368375FAEAC3EAAF9C633885 /* MinuteExportView.swift in Sources */,
+				76069091C99F8E35DE158772 /* MinuteGlucoseStore.swift in Sources */,
 				388358C825EEF6D200E024B2 /* BasalProfileEntry.swift in Sources */,
 				DDA9AC092D672CF100E6F1A9 /* AppVersionChecker.swift in Sources */,
 				DB0BA0010000000000000003 /* DevelopmentBranchAlerter.swift in Sources */,
@@ -5448,6 +5455,7 @@
 				DD6A4E7E2DBEBF0F008C4B26 /* StartupReturningUserStepView.swift in Sources */,
 				DD6D67E42C9C253500660C9B /* ColorSchemeOption.swift in Sources */,
 				582DF9752C8CDB92001F516D /* GlucoseChartView.swift in Sources */,
+				F4280EF3061F2005CA72236B /* MinuteGlucoseChartView.swift in Sources */,
 				BD432CA12D2F4E3600D1EB79 /* WatchMessageKeys.swift in Sources */,
 				DD4C581F2D73C43D001BFF2C /* LoopStatsView.swift in Sources */,
 				58A3D53A2C96D4DE003F90FC /* AddTempTargetForm.swift in Sources */,

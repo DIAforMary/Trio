@@ -453,10 +453,21 @@ extension MinuteGlucoseExporter: LibreLoopStateObserver {
         didUpdate state: LibreLoopCGMManagerState,
         latestSample: LibreLoopGlucoseSample?
     ) {
-        guard isEnabled, let sample = latestSample else { return }
+        guard let sample = latestSample else { return }
         // Only live readings; skip readings the sensor itself flagged as
         // faulty (LibreLoop does not forward those to Trio either).
         guard sample.source == .realtime, !sample.hasBlockingIssue else { return }
+
+        let identifier = MinuteExportEntry.makeIdentifier(sensorSerial: state.sensorSerial, lifeCount: sample.lifeCount)
+
+        // Display branch: keep every minute reading for the chart, in a
+        // separate store (never in Trio's glucose table). No-op unless
+        // "Show minute readings in chart" is on.
+        MinuteGlucoseStore.shared.record(
+            MinuteGlucoseReading(id: identifier, date: sample.date, mgdl: Int(sample.valueMgDL))
+        )
+
+        guard isEnabled else { return }
 
         if target == .primaryNightscout {
             // Trio uploads the readings LibreLoop forwards to it (about every
@@ -468,7 +479,7 @@ extension MinuteGlucoseExporter: LibreLoopStateObserver {
         }
 
         let entry = MinuteExportEntry(
-            identifier: MinuteExportEntry.makeIdentifier(sensorSerial: state.sensorSerial, lifeCount: sample.lifeCount),
+            identifier: identifier,
             // Truncated like Trio's own glucose values.
             mgdl: Int(sample.valueMgDL),
             date: sample.date,

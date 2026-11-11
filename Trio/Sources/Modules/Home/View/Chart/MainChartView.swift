@@ -850,6 +850,11 @@ struct MainChartCanvas: View {
         }
     }
 
+    /// Fork feature (libre-1min-display): minute readings in the render window.
+    var windowedMinuteGlucose: [MinuteGlucoseReading] {
+        state.minuteGlucose.filter { $0.date >= windowStart && $0.date <= windowEnd }
+    }
+
     var windowedInsulin: [PumpEventStored] {
         state.insulinFromPersistence.filter { entry in
             guard let date = entry.timestamp else { return false }
@@ -914,6 +919,7 @@ extension MainChartCanvas {
         // slice each series once per layout; these were computed properties
         // re-evaluated on every reference (glucose alone was scanned 3x)
         let glucose = windowedGlucose
+        let minuteGlucose = windowedMinuteGlucose
         let insulin = windowedInsulin
         let carbs = windowedCarbs
         let fpus = windowedFPUs
@@ -965,6 +971,17 @@ extension MainChartCanvas {
                 maxValue: state.maxYAxisValue,
                 forecastDisplayType: state.forecastDisplayType,
                 lastDeterminationDate: state.determinationsFromPersistence.first?.deliverAt ?? .distantPast
+            )
+
+            // Fork feature (libre-1min-display): faded minute dots, drawn
+            // before (behind) the normal 5-minute dots.
+            MinuteGlucoseChartView(
+                readings: minuteGlucose,
+                units: state.units,
+                highGlucose: state.highGlucose,
+                lowGlucose: state.lowGlucose,
+                currentGlucoseTarget: state.currentGlucoseTarget,
+                glucoseColorScheme: state.glucoseColorScheme
             )
 
             GlucoseChartView(

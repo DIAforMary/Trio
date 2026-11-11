@@ -1,5 +1,5 @@
 name: zz Check 1-min export (compile + tests)
-# Fork-only workflow (DIAforMary/Trio, branch libre-1min-export).
+# Fork-only workflow (DIAforMary/Trio, branches libre-1min-export / libre-1min-display).
 # Compiles Trio for the iOS Simulator and runs the 1-minute export unit tests.
 # Needs no Apple credentials and uploads nothing to TestFlight.
 
@@ -8,6 +8,7 @@ on:
   push:
     branches:
       - libre-1min-export
+      - libre-1min-display
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -67,6 +68,7 @@ jobs:
             -destination "$DESTINATION" \
             -parallel-testing-enabled NO \
             -only-testing:TrioTests/MinuteGlucoseExportTests \
+            -only-testing:TrioTests/MinuteReadingBufferTests \
             2>&1 | tee xcodebuild-test.log
 
       - name: Show errors

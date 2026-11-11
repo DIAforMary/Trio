@@ -11,6 +11,7 @@ struct MinuteExportView: View {
     @State private var resultMessage: String?
     @State private var resultIsError = false
     @State private var testing = false
+    @State private var showInChart = false
 
     @Environment(\.colorScheme) var colorScheme
     @Environment(AppState.self) var appState
@@ -77,6 +78,20 @@ struct MinuteExportView: View {
             }
             .listRowBackground(Color.chart)
 
+            // Fork feature (libre-1min-display)
+            Section(
+                header: Text("Trio chart"),
+                footer: Text(
+                    "Shows the minute readings as small, faded dots behind the normal 5-minute dots on the home screen chart. Display only: the current value, delta, algorithm, alarms, statistics, Watch and Live Activity keep using 5-minute data. Works without the export above. Turning it off deletes the stored minute readings."
+                )
+            ) {
+                Toggle("Show minute readings in chart", isOn: $showInChart)
+                    .onChange(of: showInChart) { _, newValue in
+                        MinuteGlucoseStore.shared.setShownInChart(newValue)
+                    }
+            }
+            .listRowBackground(Color.chart)
+
             Section(header: Text("Status")) {
                 statusRow("Libre 3 (LibreLoop) connected", exporter.status.isLibreLoopActive ? "Yes" : "No")
                 statusRow("Export", exporter.isEnabled ? "On" : "Off")
@@ -104,6 +119,7 @@ struct MinuteExportView: View {
         .onAppear {
             enabled = exporter.isEnabled
             target = exporter.target
+            showInChart = MinuteGlucoseStore.shared.isShownInChart
             urlString = exporter.configuredURLString
             secret = exporter.configuredSecret
         }

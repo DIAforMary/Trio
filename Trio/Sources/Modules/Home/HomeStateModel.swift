@@ -97,6 +97,9 @@ extension Home {
         var selectedTab: Int = 0
         var waitForSuggestion: Bool = false
         var glucoseFromPersistence: [GlucoseStored] = []
+        /// Fork feature (libre-1min-display): Libre 3 minute readings for the
+        /// chart only, from a separate store; never used for calculations.
+        var minuteGlucose: [MinuteGlucoseReading] = []
         var latestTwoGlucoseValues: [GlucoseStored] = []
         var carbsFromPersistence: [CarbEntryStored] = []
         var fpusFromPersistence: [CarbEntryStored] = []
@@ -607,6 +610,12 @@ extension Home {
             fetchGlucoseManager.cgmDisplayState
                 .receive(on: DispatchQueue.main)
                 .sink { [weak self] state in self?.cgmDisplayState = state }
+                .store(in: &lifetime)
+
+            // Fork feature (libre-1min-display): minute readings for the chart.
+            MinuteGlucoseStore.shared.$chartReadings
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] readings in self?.minuteGlucose = readings }
                 .store(in: &lifetime)
             fetchGlucoseManager.cgmProgressHighlight
                 .receive(on: DispatchQueue.main)

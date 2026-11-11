@@ -174,3 +174,48 @@ import Testing
         #expect(MinuteExportRequest.backoff(afterFailures: 50) == 900)
     }
 }
+
+/// Fork feature (branch libre-1min-display): separate store for chart dots.
+@Suite("MinuteGlucoseStore: separate minute-reading buffer") struct MinuteReadingBufferTests {
+    private let now = Date(timeIntervalSince1970: 1_800_000_000)
+
+    private func reading(_ id: Int, minutesAgo: Double, mgdl: Int = 100) -> MinuteGlucoseReading {
+        MinuteGlucoseReading(id: "r\(id)", date: now.addingTimeInterval(-minutesAgo * 60), mgdl: mgdl)
+    }
+
+    @Test("Buffer ignores duplicates and keeps oldest first") func dedupAndOrder() {
+        var buffer = MinuteReadingBuffer()
+        let addedA = buffer.add(reading(1, minutesAgo: 1), now: now)
+        let addedB = buffer.add(reading(3, minutesAgo: 3), now: now)
+        let addedC = buffer.add(reading(2, minutesAgo: 2), now: now)
+        let addedDuplicate = buffer.add(reading(2, minutesAgo: 2), now: now)
+        #expect(addedA && addedB && addedC)
+        #expect(!addedDuplicate)
+        #expect(buffer.readings.map(\.id) == ["r3", "r2", "r1"])
+    }
+
+    @Test("Buffer drops readings older than the retention window") func retention() {
+        var buffer = MinuteReadingBuffer()
+        buffer.add(reading(1, minutesAgo: 30), now: now, retention: 3600)
+        let addedTooOld = buffer.add(reading(2, minutesAgo: 90), now: now, retention: 3600)
+        #expect(!addedTooOld)
+        // A later "now" pushes the first reading out of the window.
+        buffer.add(reading(3, minutesAgo: 0), now: now.addingTimeInterval(45 * 60), retention: 3600)
+        #expect(buffer.readings.map(\.id) == ["r3"])
+    }
+
+    @Test("Buffer caps the number of readings") func cap() {
+        var buffer = MinuteReadingBuffer()
+        for index in 1 ... 5 {
+            buffer.add(reading(index, minutesAgo: Double(10 - index)), now: now, maxCount: 3)
+        }
+        #expect(buffer.readings.map(\.id) == ["r3", "r4", "r5"])
+    }
+
+    @Test("Buffer survives a JSON round trip") func persistence() throws {
+        var buffer = MinuteReadingBuffer()
+        buffer.add(reading(1, minutesAgo: 1), now: now)
+        let restored = try JSONDecoder().decode(MinuteReadingBuffer.self, from: JSONEncoder().encode(buffer))
+        #expect(restored == buffer)
+    }
+}
