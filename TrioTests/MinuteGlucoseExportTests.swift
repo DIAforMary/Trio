@@ -223,6 +223,15 @@ import Testing
         #expect(info.mgdl == 112)
         #expect(info.minutesAfterFiveMinuteReading == 3)
         #expect(info.fiveMinuteDelta == 10)
+        #expect(info.oneMinuteDelta == 2)
+    }
+
+    @Test("No 1-minute change when the previous reading is too far back") func noOneMinuteDelta() throws {
+        let newest = MinuteGlucoseReading(id: "b", date: now.addingTimeInterval(-20), mgdl: 120)
+        let old = MinuteGlucoseReading(id: "a", date: now.addingTimeInterval(-20 - 5 * 60), mgdl: 100)
+        let info = try #require(MinuteBubbleInfo.make(readings: [old, newest], lastFiveMinuteDate: nil, now: now))
+        #expect(info.oneMinuteDelta == nil)
+        #expect(info.fiveMinuteDelta == 20)
     }
 
     @Test("Newest reading equal to the 5-minute reading gives +0") func sameAsFiveMinute() throws {

@@ -105,24 +105,23 @@ removed on 11 Nov 2026.
 Three choices under **Glucose bubble**:
 
 1. **5-minute value only** – original Trio, nothing changes.
-2. **Small line with minute reading** – the 5-minute value stays the big number, drawn a
-   bit smaller (32 instead of 40 pt) to make room. Two lines below it show the newest
-   minute reading:
+2. **Minute value with 5-min footnote** (replaces the former "Small line" mode; a stored
+   "Small line" choice carries over to this mode):
 
    ```
-        112            ← 5-minute value (big, slightly smaller in this mode)
-     2 min  +4         ← minutes ago, delta (5-minute data, as always)
-      118 (+6)         ← newest minute reading, deviation from the 5-minute value
-     3rd minute        ← which minute after the last 5-minute reading
+        118            ← newest minute reading (big, 40 pt)
+      #3 (+2)          ← position in the 5-minute cycle, change from the previous minute reading
+   5-min 112 (+6)      ← last 5-minute value (smaller), total change since it
    ```
 
-   - Line 1 (15 pt, in the glucose colour): the newest minute reading and, in brackets,
-     its difference to the 5-minute value shown above (`±0` when equal).
-   - Line 2 (12 pt, grey): "1st minute" … "4th minute" after the last 5-minute reading
-     (ordinal follows the phone's language, e.g. "3." in German). When the newest minute
-     reading *is* the 5-minute reading, it says "5-min reading".
-   - Without a fresh minute reading both lines disappear and the 5-minute value returns to
-     its normal size.
+   - **#1 … #4**: the minute readings after a 5-minute reading; **#5**: the 5-minute reading
+     itself (then the last line shows `(±0)`). If a minute is missing, the number follows
+     the minutes elapsed (e.g. #6 after a late 5-minute reading).
+   - **(+2)**: newest minute reading minus the reading before it, if that one is 30 s …
+     3 min older; otherwise `(--)`.
+   - **5-min 112 (+6)**: the last 5-minute value and the total change from it to the newest
+     minute reading.
+   - The arrow ring around the bubble stays the arrow of the last 5-minute reading.
 3. **Minute reading as main value** – the big number is the newest minute reading, with a
    small `1-min` label above it:
 
@@ -278,7 +277,7 @@ Path in the app: **Settings → Nightscout → 1-Minute Readings (Libre 3)**
 | Element | Meaning |
 |---|---|
 | **Show minute readings in chart** | Chart dots on/off, takes effect immediately |
-| **Glucose bubble** | "5-minute value only" / "Small line with minute reading" / "Minute reading as main value", takes effect immediately |
+| **Glucose bubble** | "5-minute value only" / "Minute value with 5-min footnote" / "Minute reading as main value", takes effect immediately |
 
 When chart dots **and** bubble are both off, the stored minute readings are deleted.
 Both work without the upload.
@@ -398,7 +397,7 @@ with the Trio maintainers (feature request #1728, Discord). Suggested procedure:
 
 | # | Test | What to check / record |
 |---|---|---|
-| 1 | Display only (upload off), bubble "Small line" | Dots appear every minute; bubble line counts +1 … +4; values plausible against the Libre app if available |
+| 1 | Display only (upload off), bubble "Minute value with 5-min footnote" | Dots appear every minute; bubble counts #1 … #5; (+x) and 5-min total plausible against the Libre app if available |
 | 2 | Bubble "Main value" | Big number changes every minute; delta behaves like a 5-minute delta; compare with the bolus calculator's value |
 | 3 | Bluetooth gap (walk away from the phone for 5 min) | Bubble falls back to 5-minute display; dots resume afterwards |
 | 4 | Upload on, LoopFollow alarms not relied on | Nightscout shows a point every minute; "Waiting to upload" stays at 0–1 |
@@ -439,7 +438,7 @@ with the Trio maintainers (feature request #1728, Discord). Suggested procedure:
 |---|---|---|
 | Status "Libre 3 (LibreLoop) connected: No" | Active CGM is not Libre 3 / 3+ | Features only work with LibreLoop |
 | No chart dots | Switch off, or readings older than the chart window | Turn on "Show minute readings in chart", wait 2–3 minutes |
-| Bubble shows no minute line | Mode "5-minute value only"; newest minute reading is the 5-minute reading (+0); no reading younger than 3 min; 5-minute reading stale | Check mode; wait a minute; check Bluetooth |
+| Bubble shows only the 5-minute value | Mode "5-minute value only"; no minute reading younger than 3 min; 5-minute reading stale | Check mode; wait a minute; check Bluetooth |
 | "No main Nightscout is connected" | No Nightscout URL in Trio | Set it up under Settings → Nightscout |
 | "Not authorized (HTTP 401/403)" | API secret in Trio's Nightscout settings wrong or without write access | Fix in Settings → Nightscout, then "Test connection" |
 | "Waiting to upload" keeps growing | No internet or Nightscout down | Uploads resume automatically (backoff up to 15 min) |
@@ -490,7 +489,7 @@ shortcut that keeps all critical paths untouched. Differences:
 |---|---|
 | Upload switch | UserDefaults `MinuteGlucoseExport.enabled` |
 | Chart dots switch | UserDefaults `MinuteGlucoseExport.showInChart` |
-| Bubble mode | UserDefaults `MinuteGlucoseExport.bubbleMode` (`off`, `smallLine`, `mainValue`) |
+| Bubble mode | UserDefaults `MinuteGlucoseExport.bubbleMode` (`off`, `smallLine` = "Minute value with 5-min footnote", `mainValue`) |
 | Upload queue | `Application Support/MinuteGlucoseExport/queue.json` |
 | Display readings | `Application Support/MinuteGlucoseExport/chart-readings.json` |
 | Removed on first start (old option) | UserDefaults `MinuteGlucoseExport.url`, `MinuteGlucoseExport.target`; keychain `MinuteGlucoseExport.secret` |
@@ -536,6 +535,7 @@ the branch stores no credentials of its own.
 | 11 Nov 2026 | `b13b951` | Single test branch, "second server" removed, main Nightscout only |
 | 11 Nov 2026 | `0be80af` | Detailed documentation |
 | 12 Nov 2026 | `ee1f700` | Bubble "Small line": smaller 5-minute value, two larger minute lines |
+| 12 Nov 2026 | (next) | Bubble mode "Minute value with 5-min footnote" replaces "Small line" |
 | 12 Nov 2026 | `da16ef5` | Minute entries marked with `device: "Trio-LibreLoop-1min"` (for the LoopFollow test branch); TestFlight build 69 |
 
 All commits are authored by Claude (AI) on behalf of DIAforMary.

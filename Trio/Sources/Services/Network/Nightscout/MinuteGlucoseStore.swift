@@ -30,10 +30,13 @@ struct MinuteGlucoseReading: Codable, Equatable, Identifiable {
 enum MinuteBubbleMode: String, CaseIterable, Identifiable {
     /// Unchanged Trio: only the 5-minute value.
     case off
-    /// Big number stays the 5-minute value; a small line below shows the
-    /// newest minute reading and how many minutes after the 5-minute
-    /// reading it was taken (+1 ... +4).
-    case smallLine
+    /// "Minute value with 5-min footnote": big number = newest minute reading;
+    /// below it "#1 … #5" (position in the 5-minute cycle, #5 = the 5-minute
+    /// reading) with the change from the previous minute reading, and a
+    /// smaller line with the last 5-minute value and the total change since it.
+    /// Raw value kept from the former "Small line" mode, so a stored choice
+    /// carries over.
+    case minuteWithFootnote = "smallLine"
     /// Big number shows the newest minute reading; the delta is the change
     /// over the last 5 minutes (not over 1 minute); a small "1-min" label
     /// marks it.
@@ -53,6 +56,9 @@ struct MinuteBubbleInfo: Equatable {
     /// Newest minute value minus the minute value about 5 minutes earlier
     /// (mg/dL). `nil` if no reading 5 minutes earlier (± 90 s) exists.
     let fiveMinuteDelta: Int?
+    /// Newest minute value minus the reading before it (mg/dL), if that one is
+    /// 30 s … 3 min older; otherwise `nil`.
+    let oneMinuteDelta: Int?
 
     /// A minute reading older than this is ignored (the bubble then falls
     /// back to plain 5-minute display).
@@ -82,11 +88,21 @@ struct MinuteBubbleInfo: Equatable {
             .filter { abs($0.date.timeIntervalSince(targetDate)) <= 90 }
             .min { abs($0.date.timeIntervalSince(targetDate)) < abs($1.date.timeIntervalSince(targetDate)) }
 
+        var oneMinuteDelta: Int?
+        if readings.count >= 2 {
+            let previous = readings[readings.count - 2]
+            let gap = latest.date.timeIntervalSince(previous.date)
+            if gap >= 30, gap <= 180 {
+                oneMinuteDelta = latest.mgdl - previous.mgdl
+            }
+        }
+
         return MinuteBubbleInfo(
             mgdl: latest.mgdl,
             date: latest.date,
             minutesAfterFiveMinuteReading: minutesAfter,
-            fiveMinuteDelta: reference.map { latest.mgdl - $0.mgdl }
+            fiveMinuteDelta: reference.map { latest.mgdl - $0.mgdl },
+            oneMinuteDelta: oneMinuteDelta
         )
     }
 }

@@ -63,7 +63,7 @@ struct MinuteExportView: View {
             Section(
                 header: Text("Trio display"),
                 footer: Text(
-                    "Display only. The algorithm, bolus calculator, alarms, statistics, Watch, Live Activity, HealthKit and Tidepool keep using Trio's 5-minute data. Chart: minute readings as small, faded dots behind the 5-minute dots. Glucose bubble: \"Small line\" keeps the 5-minute value (a bit smaller) and adds two lines below it: the newest minute reading with its deviation from the 5-minute value, and which minute after the 5-minute reading it is (1st to 4th). \"Main value\" shows the newest minute reading as the big number, marked \"1-min\", with the change over the last 5 minutes as delta; the bolus calculator still uses the last 5-minute value. Both work without the upload above. When both are off, the stored minute readings are deleted."
+                    "Display only. The algorithm, bolus calculator, alarms, statistics, Watch, Live Activity, HealthKit and Tidepool keep using Trio's 5-minute data. Chart: minute readings as small, faded dots behind the 5-minute dots. Glucose bubble: \"Minute value with 5-min footnote\" shows the newest minute reading big, below it #1 to #5 (position in the 5-minute cycle, #5 = the 5-minute reading) with the change from the previous minute reading, and a smaller line with the last 5-minute value and the total change since it. \"Main value\" shows the newest minute reading as the big number, marked \"1-min\", with the change over the last 5 minutes as delta; the bolus calculator still uses the last 5-minute value. Both work without the upload above. When both are off, the stored minute readings are deleted."
                 )
             ) {
                 Toggle("Show minute readings in chart", isOn: $showInChart)
@@ -73,7 +73,7 @@ struct MinuteExportView: View {
 
                 Picker("Glucose bubble", selection: $bubbleMode) {
                     Text("5-minute value only").tag(MinuteBubbleMode.off)
-                    Text("Small line with minute reading").tag(MinuteBubbleMode.smallLine)
+                    Text("Minute value with 5-min footnote").tag(MinuteBubbleMode.minuteWithFootnote)
                     Text("Minute reading as main value").tag(MinuteBubbleMode.mainValue)
                 }
                 .onChange(of: bubbleMode) { _, newValue in
