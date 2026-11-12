@@ -252,8 +252,8 @@ New files: `MinuteGlucoseExport.swift`, `MinuteGlucoseExporter.swift`,
 
 - ✅ Compiles in GitHub Actions (iOS Simulator).
 - ✅ 21 unit tests in 3 groups (queue, upload format, URL handling, display store, bubble
-  logic) passed on the current version (commit `b13b951`).
-- ✅ Built and uploaded to TestFlight: **Trio 1.0.2 (68)**, 11 Nov 2026.
+  logic) passed on the current version (commit `da16ef5`).
+- ✅ Built and uploaded to TestFlight: **Trio 1.0.2 (69)**, 12 Nov 2026 (68: 11 Nov).
 - ❌ **Not yet tested on a real phone with a sensor.** Test during the day first, with the
   phone at hand.
 
@@ -534,6 +534,8 @@ the branch stores no credentials of its own.
 | 11 Nov 2026 | `8cb44e5` | Glucose bubble modes |
 | 11 Nov 2026 | `3283e36` | First fork notes |
 | 11 Nov 2026 | `b13b951` | Single test branch, "second server" removed, main Nightscout only |
-| 11 Nov 2026 | (this commit) | Detailed documentation |
+| 11 Nov 2026 | `0be80af` | Detailed documentation |
+| 12 Nov 2026 | `ee1f700` | Bubble "Small line": smaller 5-minute value, two larger minute lines |
+| 12 Nov 2026 | `da16ef5` | Minute entries marked with `device: "Trio-LibreLoop-1min"` (for the LoopFollow test branch); TestFlight build 69 |
 
 All commits are authored by Claude (AI) on behalf of DIAforMary.
