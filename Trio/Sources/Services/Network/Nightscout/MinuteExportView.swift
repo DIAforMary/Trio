@@ -63,7 +63,7 @@ struct MinuteExportView: View {
             Section(
                 header: Text("Trio display"),
                 footer: Text(
-                    "Display only. The algorithm, bolus calculator, alarms, statistics, Watch, Live Activity, HealthKit and Tidepool keep using Trio's 5-minute data. Chart: minute readings as small, faded dots behind the 5-minute dots. Glucose bubble: \"Small line\" keeps the 5-minute value big and adds the newest minute reading below it with its minute after the last 5-minute reading (+1 to +4). \"Main value\" shows the newest minute reading as the big number, marked \"1-min\", with the change over the last 5 minutes as delta; the bolus calculator still uses the last 5-minute value. Both work without the upload above. When both are off, the stored minute readings are deleted."
+                    "Display only. The algorithm, bolus calculator, alarms, statistics, Watch, Live Activity, HealthKit and Tidepool keep using Trio's 5-minute data. Chart: minute readings as small, faded dots behind the 5-minute dots. Glucose bubble: \"Small line\" keeps the 5-minute value (a bit smaller) and adds two lines below it: the newest minute reading with its deviation from the 5-minute value, and which minute after the 5-minute reading it is (1st to 4th). \"Main value\" shows the newest minute reading as the big number, marked \"1-min\", with the change over the last 5 minutes as delta; the bolus calculator still uses the last 5-minute value. Both work without the upload above. When both are off, the stored minute readings are deleted."
                 )
             ) {
                 Toggle("Show minute readings in chart", isOn: $showInChart)

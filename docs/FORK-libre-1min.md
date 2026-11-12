@@ -103,19 +103,24 @@ removed on 11 Nov 2026.
 Three choices under **Glucose bubble**:
 
 1. **5-minute value only** – original Trio, nothing changes.
-2. **Small line with minute reading** – the big number stays the 5-minute value. A small
-   line below shows the newest minute reading and how many minutes after the last
-   5-minute reading it was taken:
+2. **Small line with minute reading** – the 5-minute value stays the big number, drawn a
+   bit smaller (32 instead of 40 pt) to make room. Two lines below it show the newest
+   minute reading:
 
    ```
-        112            ← 5-minute value (big, as always)
+        112            ← 5-minute value (big, slightly smaller in this mode)
      2 min  +4         ← minutes ago, delta (5-minute data, as always)
-    1-min 118 · +3 min ← newest minute reading, 3rd minute after the 5-minute reading
+      118 (+6)         ← newest minute reading, deviation from the 5-minute value
+     3rd minute        ← which minute after the last 5-minute reading
    ```
 
-   Normally the number after `+` runs 1, 2, 3, 4, then a new 5-minute reading arrives and
-   the line disappears for that minute (the newest minute reading *is* the 5-minute
-   reading).
+   - Line 1 (15 pt, in the glucose colour): the newest minute reading and, in brackets,
+     its difference to the 5-minute value shown above (`±0` when equal).
+   - Line 2 (12 pt, grey): "1st minute" … "4th minute" after the last 5-minute reading
+     (ordinal follows the phone's language, e.g. "3." in German). When the newest minute
+     reading *is* the 5-minute reading, it says "5-min reading".
+   - Without a fresh minute reading both lines disappear and the 5-minute value returns to
+     its normal size.
 3. **Minute reading as main value** – the big number is the newest minute reading, with a
    small `1-min` label above it:
 

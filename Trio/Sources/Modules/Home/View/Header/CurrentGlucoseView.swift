@@ -316,15 +316,46 @@ struct CurrentGlucoseView: View {
         .frame(alignment: .top)
     }
 
-    /// Fork feature (libre-1min-display): "1-min 118 · +3 min". `nil` when the
-    /// newest minute reading is the 5-minute reading itself (nothing new).
-    private func minuteLineText(_ info: MinuteBubbleInfo) -> String? {
+    /// Fork feature (libre-1min-display), "Small line" mode.
+    /// `true` while the two minute lines are shown below the 5-minute value;
+    /// the 5-minute value is then drawn a bit smaller to make room.
+    private var showsMinuteLines: Bool {
+        minuteBubbleMode == .smallLine && minuteInfo != nil
+    }
+
+    /// First minute line: newest minute reading and its deviation from the
+    /// 5-minute value shown above, e.g. "118 (+6)".
+    private func minuteValueLine(_ info: MinuteBubbleInfo) -> String {
         let value = minuteValueString(info.mgdl)
-        guard let minutes = info.minutesAfterFiveMinuteReading else {
-            return "1-min \(value)"
-        }
-        guard minutes >= 1 else { return nil }
-        return "1-min \(value) · +\(minutes) min"
+        guard let fiveMinuteValue = glucose.last?.glucose else { return value }
+        let difference = info.mgdl - Int(fiveMinuteValue)
+        let converted = units == .mmolL ? Decimal(difference).asMmolL : Decimal(difference)
+        guard difference != 0 else { return "\(value) (±0)" }
+        let formatted = (deltaFormatter.string(from: converted as NSNumber) ?? "\(difference)")
+            .trimmingCharacters(in: .whitespaces)
+        return "\(value) (\(formatted))"
+    }
+
+    /// Second minute line: which minute after the last 5-minute reading the
+    /// newest minute reading is, e.g. "3rd minute"; "5-min reading" when it
+    /// is the 5-minute reading itself; `nil` without a 5-minute reading.
+    private func minuteCountLine(_ info: MinuteBubbleInfo) -> String? {
+        guard let minutes = info.minutesAfterFiveMinuteReading else { return nil }
+        guard minutes >= 1 else { return String(localized: "5-min reading") }
+        let ordinal = Self.ordinalFormatter.string(from: NSNumber(value: minutes)) ?? "\(minutes)."
+        return String(localized: "\(ordinal) minute")
+    }
+
+    private static let ordinalFormatter: NumberFormatter = {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .ordinal
+        return formatter
+    }()
+
+    /// Spoken version of both minute lines.
+    private func minuteLineText(_ info: MinuteBubbleInfo) -> String? {
+        let lines = [String(localized: "1-minute reading") + " " + minuteValueLine(info), minuteCountLine(info)]
+        return lines.compactMap { $0 }.joined(separator: ", ")
     }
 
     @ViewBuilder private func fiveMinuteContent() -> some View {
@@ -334,7 +365,8 @@ struct CurrentGlucoseView: View {
                     ? Decimal(glucoseValue).description
                     : Decimal(glucoseValue).formattedAsMmolL
                 Text(glucoseValue == 400 ? "HIGH" : displayGlucose)
-                    .font(.system(size: 40, weight: .bold, design: .rounded))
+                    // Fork feature: a bit smaller while the minute lines are shown.
+                    .font(.system(size: showsMinuteLines ? 32 : 40, weight: .bold, design: .rounded))
                     .foregroundStyle(glucoseColor(for: glucoseValue))
             } else {
                 Text("– –")
@@ -354,13 +386,20 @@ struct CurrentGlucoseView: View {
             }
             .frame(alignment: .top)
 
-            // Fork feature (libre-1min-display): small minute line below.
-            if minuteBubbleMode == .smallLine, let info = minuteInfo, let line = minuteLineText(info) {
-                Text(line)
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+            // Fork feature (libre-1min-display): two minute lines below.
+            if showsMinuteLines, let info = minuteInfo {
+                VStack(spacing: 0) {
+                    Text(minuteValueLine(info))
+                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                        .foregroundStyle(glucoseColor(for: Int16(clamping: info.mgdl)))
+                    if let countLine = minuteCountLine(info) {
+                        Text(countLine)
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
             }
         }
     }
