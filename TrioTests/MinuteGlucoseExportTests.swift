@@ -106,14 +106,14 @@ import Testing
         #expect(request.value(forHTTPHeaderField: "api-secret") == "a94a8fe5ccb19ba61c4c0873d391e987982fbbd3")
     }
 
-    @Test("Upload uses Trio's format: no device, no identifier") func uploadDocumentFormat() throws {
+    @Test("Upload uses Trio's format plus the minute marker device, no identifier") func uploadDocumentFormat() throws {
         let base = URL(string: "https://my-ns.example.org")!
         let request = try MinuteExportRequest.makeUploadRequest(base: base, secret: "test", entries: [entry(7, mgdl: 140)])
         let body = try #require(request.httpBody)
         let array = try #require(try JSONSerialization.jsonObject(with: body) as? [[String: Any]])
         let object = try #require(array.first)
         #expect(array.count == 1)
-        #expect(object["device"] == nil)
+        #expect(object["device"] as? String == "Trio-LibreLoop-1min")
         #expect(object["identifier"] == nil)
         #expect(object["type"] as? String == "sgv")
         #expect(object["sgv"] as? Int == 140)

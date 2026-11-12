@@ -81,10 +81,12 @@ removed on 11 Nov 2026.
   and nothing is uploaded twice.
 - **Where to:** Trio's main Nightscout, using the URL and API secret already configured
   under *Settings → Nightscout*. There is no separate server setting.
-- **Format:** identical to Trio's own glucose uploads: `type: "sgv"`, `sgv` (mg/dL),
-  `date` (milliseconds, truncated like Trio), `dateString` (ISO 8601, UTC, with
-  milliseconds), `direction` (same arrow mapping Trio uses for LibreLoop). No extra
-  fields, so Nightscout cannot tell the minute entries apart from Trio's own.
+- **Format:** Trio's own glucose fields: `type: "sgv"`, `sgv` (mg/dL), `date`
+  (milliseconds, truncated like Trio), `dateString` (ISO 8601, UTC, with milliseconds),
+  `direction` (same arrow mapping Trio uses for LibreLoop), plus
+  **`device: "Trio-LibreLoop-1min"`** as marker. Trio's own 5-minute entries have no
+  `device` field, so follower apps can tell the two kinds apart (the
+  DIAforMary/LoopFollow test branch uses this, see section 7).
 - **When:** immediately after each new minute reading. If Nightscout is unreachable,
   readings wait in a queue (up to 24 h) and are sent later in batches of up to 100.
 - **Example:** Trio uploads 10:00 and 10:05 as usual; the test branch adds 10:01, 10:02,
@@ -302,7 +304,8 @@ Only relevant when **Upload minute readings** is on.
 |---|---|---|
 | **Nightscout web page / app** | Shows every minute point, updates live; delta calculated from 5-minute blocks, so it stays correct | ✅ works |
 | **Nightscout alarms** (high/low, stale) | Based on the newest value; unaffected | ✅ works |
-| **LoopFollow** | Draws the extra points, but: delta = last − second-to-last reading → about **5 times smaller**; **fast-drop alarm** counts the drop *per reading* and **may not fire**; still refreshes only about every 5 minutes; loaded history covers about a fifth of the configured days | ⚠️ misleading |
+| **LoopFollow (original)** | Draws the extra points. In theory its delta (last − second-to-last reading) shrinks and its fast-drop alarm (drop per reading) may react differently; in practice (user report, 12 Nov 2026) display and alarms worked well with minute data | ⚠️ check |
+| **LoopFollow test branch** (DIAforMary/LoopFollow `libre-1min-display`) | Recognises the minute entries by `device: "Trio-LibreLoop-1min"`: big value = last 5-minute reading with its 5-minute delta and "min ago", below it the newest minute reading with its deviation and "1st … 4th minute". Without minute entries it behaves exactly like original LoopFollow | ✅ designed for it |
 | **Trio "Backfill Glucose"** | Protected in this branch (section 5.2) | ✅ safe |
 | **Other follower apps** (xDrip+ follower, watch faces, Sugarmate, …) | Not checked; many assume 5-minute data | ⚠️ unknown |
 

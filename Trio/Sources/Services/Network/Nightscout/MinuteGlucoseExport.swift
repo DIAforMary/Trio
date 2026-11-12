@@ -6,8 +6,8 @@ import Foundation
 // Optional, opt-in (EXPERIMENTAL) export of the Libre 3 minute readings that
 // LibreLoop receives to Trio's main Nightscout, using Trio's own Nightscout
 // connection. Only the readings Trio does not upload itself are sent, in
-// exactly Trio's document format, so Trio's own 5-minute entries stay
-// untouched.
+// Trio's document format plus `device: "Trio-LibreLoop-1min"` as marker, so
+// Trio's own 5-minute entries stay untouched and followers can tell them apart.
 //
 // Design rule: this feature is purely additive. It never writes to
 // `GlucoseStored`, never triggers a loop, never touches the algorithm,
@@ -18,8 +18,9 @@ import Foundation
 // building, URL checks) so they can be unit-tested without a CGM.
 
 enum MinuteGlucoseExport {
-    /// `device` field on every uploaded entry, so the 1-minute stream is
-    /// easy to tell apart on the receiving server.
+    /// `device` field on every uploaded minute entry. Trio's own 5-minute
+    /// entries have no `device` field, so follower apps (e.g. the
+    /// DIAforMary/LoopFollow test branch) can tell the two apart.
     static let deviceName = "Trio-LibreLoop-1min"
 
     /// Keep at most 24 h of minute readings while the server is unreachable.
@@ -79,16 +80,17 @@ struct MinuteExportEntry: Codable, Equatable {
         "libreloop-\(sensorSerial ?? "unknown")-\(lifeCount)"
     }
 
-    /// The JSON document sent to the main Nightscout. `device` and
-    /// `identifier` stay local (queue bookkeeping), so the document looks
-    /// exactly like the ones Trio uploads itself.
+    /// The JSON document sent to the main Nightscout: Trio's own fields plus
+    /// `device` = `MinuteGlucoseExport.deviceName` as minute-reading marker.
+    /// `identifier` stays local (queue bookkeeping).
     func uploadDocument() -> MinuteExportUploadDocument {
         MinuteExportUploadDocument(
             type: type,
             sgv: sgv,
             date: date,
             dateString: dateString,
-            direction: direction
+            direction: direction,
+            device: MinuteGlucoseExport.deviceName
         )
     }
 
@@ -100,13 +102,15 @@ struct MinuteExportEntry: Codable, Equatable {
     }()
 }
 
-/// Wire format of one uploaded entry, same fields as Trio's own uploads.
+/// Wire format of one uploaded entry: Trio's own fields plus the
+/// minute-reading marker `device`.
 struct MinuteExportUploadDocument: Encodable, Equatable {
     let type: String
     let sgv: Int
     let date: Int64
     let dateString: String
     let direction: String
+    let device: String
 }
 
 // MARK: - Queue
